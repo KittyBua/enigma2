@@ -288,6 +288,7 @@ class RemoteControlType(ConfigListScreen, Screen):
 			("6", _("DMM advanced")),
 			("7", _("et5000/et6000")),
 			("8", _("VU+")),
+		        ("0001", _("VU+")),
 			("9", _("et8000/et10000")),
 			("11", _("et9200/et9500/et6500")),
 			("13", _("et4000")),
@@ -306,6 +307,7 @@ class RemoteControlType(ConfigListScreen, Screen):
 
 	defaultRcList = [
 		        ("bre2ze4k", 23),
+		        ("vu+", 0001),
 			("et4000", 13),
 			("et5000", 7),
 			("et6000", 7),
