@@ -4142,6 +4142,9 @@ msgstr "HDR10 Unterstützung"
 msgid "HDx1/HD1xxx/HD5x0C/VS1x00/et7x00/et8500/et7000mini"
 msgstr "HDx1/HD1xxx/HD5x0C/VS1x00/et7x00/et8500/et7000mini"
 
+msgid "Breze4k"
+msgstr "Breze4k"
+
 msgid "HELP"
 msgstr "HILFE"
 
