@@ -4145,6 +4145,9 @@ msgstr "HDx1/HD1xxx/HD5x0C/VS1x00/et7x00/et8500/et7000mini"
 msgid "Breze4k"
 msgstr "Breze4k"
 
+msgid "sf8008/sx88 4k"
+msgstr "sf8008/sx88 4k"
+
 msgid "HELP"
 msgstr "HILFE"
 
