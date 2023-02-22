@@ -281,14 +281,12 @@ class InputDeviceSetup(ConfigListScreen, Screen):
 class RemoteControlType(ConfigListScreen, Screen):
 	rcList = [
 			("0", _("Default")),
-		        ("23", _("Bre2ze4k")),
-		        ("501", _("Octagon_SFXXX8")),
+		        ("23", _("bre2ze4k")),
 			("4", _("DMM normal")),
 			("5", _("et9000/et9100")),
 			("6", _("DMM advanced")),
 			("7", _("et5000/et6000")),
 			("8", _("VU+")),
-		        ("1", _("VU+ alt")),
 			("9", _("et8000/et10000")),
 			("11", _("et9200/et9500/et6500")),
 			("13", _("et4000")),
@@ -307,8 +305,6 @@ class RemoteControlType(ConfigListScreen, Screen):
 
 	defaultRcList = [
 		        ("bre2ze4k", 23),
-		        ("sfxxx8", 501),
-		        ("vu+ alt", 1),
 			("et4000", 13),
 			("et5000", 7),
 			("et6000", 7),
