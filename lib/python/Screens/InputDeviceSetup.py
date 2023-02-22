@@ -282,6 +282,7 @@ class RemoteControlType(ConfigListScreen, Screen):
 	rcList = [
 			("0", _("Default")),
 		        ("23", _("Bre2ze4k")),
+		        ("501", _("Octagon_SFXXX8")),
 			("4", _("DMM normal")),
 			("5", _("et9000/et9100")),
 			("6", _("DMM advanced")),
@@ -306,6 +307,7 @@ class RemoteControlType(ConfigListScreen, Screen):
 
 	defaultRcList = [
 		        ("bre2ze4k", 23),
+		        ("sfxxx8", 501),
 		        ("vu+ alt", 1),
 			("et4000", 13),
 			("et5000", 7),
