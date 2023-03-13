@@ -11,7 +11,7 @@ class tmp:
 
 def getMultibootStartupDevice():
 	tmp.dir = tempfile.mkdtemp(prefix="Multiboot")
-	for device in ('/dev/block/by-name/bootoptions', '/dev/mmcblk0p1', '/dev/mmcblk1p1', '/dev/mmcblk0p3', '/dev/mmcblk0p4', '/dev/mtdblock2'):
+	for device in ('/dev/block/by-name/bootoptions', '/dev/mmcblk0p1', '/dev/mmcblk1p1', '/dev/mmcblk0p3', '/dev/mmcblk0p4', '/dev/mmcblk0p8', '/dev/mtdblock2'):
 		if os.path.exists(device):
 			if os.path.exists("/dev/block/by-name/flag"):
 				Console().ePopen('mount --bind %s %s' % (device, tmp.dir))
