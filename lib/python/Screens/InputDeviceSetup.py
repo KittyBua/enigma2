@@ -321,6 +321,7 @@ class RemoteControlType(ConfigListScreen, Screen):
 			("formuler4turbo", 18),
 			("xp1000", 14),
 			("vs1000", 16),
+		        ("VU+", 8),
 			("vs1500", 16),
 			("hd500c", 16),
 			("hd530c", 16),
