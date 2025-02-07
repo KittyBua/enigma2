@@ -413,6 +413,7 @@ int eDVBServicePMTHandler::getProgramInfo(program &program)
 	{
 		unsigned int i;
 		int first_non_mpeg = -1;
+		int first_mpeg = -1;
 		int audio_cached = -1;
 		int autoaudio_mpeg = -1;
 		int autoaudio_ac3 = -1;
@@ -502,6 +503,12 @@ int eDVBServicePMTHandler::getProgramInfo(program &program)
 			{
 				first_non_mpeg = i;
 			}
+
+			if (autoaudio_languages.empty() && program.audioStreams[i].type == audioStream::atMPEG && first_mpeg == -1)
+			{
+				first_mpeg = i;
+			}
+
 			if (!program.audioStreams[i].language_code.empty())
 			{
 				int x = 1;
@@ -599,6 +606,8 @@ int eDVBServicePMTHandler::getProgramInfo(program &program)
 				program.defaultAudioStream = autoaudio_aac;
 			else if (first_non_mpeg != -1 && (defaultac3 || defaultddp))
 				program.defaultAudioStream = first_non_mpeg;
+			else if (first_non_mpeg != -1 && first_mpeg != -1 && first_non_mpeg < first_mpeg && (!defaultac3 || !defaultddp))
+				program.defaultAudioStream = first_mpeg;
 		}
 
 		bool allow_hearingimpaired = eConfigManager::getConfigBoolValue("config.autolanguage.subtitle_hearingimpaired");
@@ -795,7 +804,11 @@ int eDVBServicePMTHandler::compareAudioSubtitleCode(const std::string &subtitleT
 
 int eDVBServicePMTHandler::getChannel(eUsePtr<iDVBChannel> &channel)
 {
-	channel = m_channel;
+	if (m_sr_channel) {
+		channel = m_sr_channel;
+	} else {
+		channel = m_channel;
+	}
 	if (channel)
 		return 0;
 	else
@@ -955,6 +968,29 @@ int eDVBServicePMTHandler::tuneExt(eServiceReferenceDVB &ref, ePtr<iTsSource> &s
 
 	if (!simulate)
 	{
+		// If is stream relay service then allocate the real channel so to provide correct frontend info
+		eDVBChannelID chid;
+		eServiceReferenceDVB sRelayOrigSref;
+		bool isStreamRelay = ref.getSROriginal(sRelayOrigSref);
+
+		if (isStreamRelay) {
+			sRelayOrigSref.getChannelID(chid);
+			res = m_resourceManager->allocateChannel(chid, m_sr_channel, simulate);
+		}
+
+
+		if (m_sr_channel) {
+			m_sr_channel->connectStateChange(
+				sigc::mem_fun(*this, &eDVBServicePMTHandler::channelStateChanged),
+				m_channelStateChanged_connection);
+			m_last_channel_state = -1;
+			channelStateChanged(m_sr_channel);
+
+			m_sr_channel->connectEvent(
+				sigc::mem_fun(*this, &eDVBServicePMTHandler::channelEvent),
+				m_channelEvent_connection);
+		}
+
 		if (m_channel)
 		{
 			m_channel->connectStateChange(

@@ -12,12 +12,20 @@ public:
 	~eListboxPythonStringContent();
 
 	void setList(SWIG_PYOBJECT(ePyObject) list);
+	void setOrientation(int orientation);
 	void setItemHeight(int height);
+	void setItemWidth(int width);
 	PyObject *getCurrentSelection();
 	int getCurrentSelectionIndex() { return m_cursor; }
 	void invalidateEntry(int index);
 	void invalidate();
 	eSize getItemSize() { return m_itemsize; }
+	int getMaxItemTextWidth();
+	void setSeparatorLineColor(const gRGB &col) { 
+		m_sepline_color = col;
+		m_sepline_color_set = 1;
+	}
+	void setSepLineThickness(int value) { m_sepline_thickness = value; }
 #ifndef SWIG
 protected:
 	void cursorHome();
@@ -41,6 +49,8 @@ protected:
 	virtual void paint(gPainter &painter, eWindowStyle &style, const ePoint &offset, int selected);
 
 	int getItemHeight() { return m_itemheight; }
+	int getItemWidth() { return m_itemwidth; }
+	int getOrientation() { return m_orientation; }
 
 protected:
 	ePyObject m_list;
@@ -48,6 +58,12 @@ protected:
 	eSize m_itemsize;
 	ePtr<gFont> m_font;
 	int m_itemheight;
+	int m_itemwidth;
+	int m_max_text_width;
+	int m_orientation;
+	gRGB m_sepline_color;
+	int m_sepline_color_set;
+	int m_sepline_thickness;
 #endif
 };
 
@@ -58,6 +74,11 @@ public:
 	void setSeperation(int sep) { m_seperation = sep; }
 	int currentCursorSelectable();
 	void setSlider(int height, int space) { m_slider_height = height; m_slider_space = space; }
+	void setSeparatorLineColor(const gRGB &col) { 
+		m_sepline_color = col;
+		m_sepline_color_set = 1;
+	}
+	void setSepLineThickness(int value) { m_sepline_thickness = value; }
 private:
 	int m_seperation, m_slider_height, m_slider_space;
 };
@@ -79,12 +100,15 @@ public:
 	void setFont(int fnt, gFont *font);
 	void setBuildFunc(SWIG_PYOBJECT(ePyObject) func);
 	void setSelectableFunc(SWIG_PYOBJECT(ePyObject) func);
+	void setOrientation(int orientation);
 	void setItemHeight(int height);
+	void setItemWidth(int width);
 	void setSelectionClip(eRect &rect, bool update=false);
 	void updateClip(gRegion &);
 	void resetClip();
 	void entryRemoved(int idx);
 	void setTemplate(SWIG_PYOBJECT(ePyObject) tmplate);
+	int getMaxItemTextWidth();
 private:
 	std::map<int, ePtr<gFont> > m_font;
 };
@@ -99,6 +123,8 @@ private:
 #define RT_VALIGN_CENTER 16
 #define RT_VALIGN_BOTTOM 32
 #define RT_WRAP 64
+#define RT_ELLIPSIS 128
+#define RT_BLEND 256
 #define BT_ALPHATEST 1
 #define BT_ALPHABLEND 2
 #define BT_SCALE 4
@@ -111,6 +137,16 @@ private:
 #define BT_VALIGN_CENTER 64
 #define BT_VALIGN_BOTTOM 128
 #define BT_ALIGN_CENTER BT_HALIGN_CENTER | BT_VALIGN_CENTER
+
+#define RADIUS_TOP_LEFT 1
+#define RADIUS_TOP_RIGHT 2
+#define RADIUS_TOP 3
+#define RADIUS_BOTTOM_LEFT 4
+#define RADIUS_BOTTOM_RIGHT 8
+#define RADIUS_BOTTOM 12
+#define RADIUS_LEFT 5
+#define RADIUS_RIGHT 10
+#define RADIUS_ALL RADIUS_TOP | RADIUS_BOTTOM
 
 #endif // SWIG
 

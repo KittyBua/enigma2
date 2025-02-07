@@ -1,46 +1,16 @@
-from Screens.Screen import Screen
-from Components.Label import Label
-from Components.ActionMap import ActionMap
-from Components.Pixmap import Pixmap
-from Components.Sources.Boolean import Boolean
-from Components.Sources.StaticText import StaticText
+from Screens.Setup import Setup
 from Components.config import config, configfile, ConfigSelection, ConfigIP, ConfigInteger, ConfigBoolean
-from Components.ConfigList import ConfigListScreen
 from Components.ImportChannels import ImportChannels
 
 from enigma import getPeerStreamingBoxes
 
 
-class SetupFallbacktuner(ConfigListScreen, Screen):
+class SetupFallbacktuner(Setup):
 	def __init__(self, session):
-		Screen.__init__(self, session)
-		Screen.setTitle(self, _("Fallback tuner setup"))
-		self.skinName = ["FallbackTunerSetup", "Setup"]
-		self.onChangedEntry = []
-		ConfigListScreen.__init__(self, [], session=session, on_change=self.changedEntry)
-
-		self["actions2"] = ActionMap(["SetupActions"],
-		{
-			"ok": self.run,
-			"menu": self.keyCancel,
-			"cancel": self.keyCancel,
-			"save": self.run,
-		}, -2)
-
-		self["key_red"] = StaticText(_("Exit"))
-		self["key_green"] = StaticText(_("Save"))
-
-		self["description"] = Label("")
-		self["VKeyIcon"] = Boolean(False)
-		self["HelpWindow"] = Pixmap()
-		self["HelpWindow"].hide()
-
-		self.force_update_list = False
 		self.createConfig()
-		self.createSetup()
+		Setup.__init__(self, session, None)
+		self.title = _("Fallback tuner setup")
 		self.remote_fallback_prev = config.usage.remote_fallback_import.value
-		self["config"].onSelectionChanged.append(self.selectionChanged)
-		self.selectionChanged()
 
 	def createConfig(self):
 
@@ -98,10 +68,14 @@ class SetupFallbacktuner(ConfigListScreen, Screen):
 		self.list.append((_("Import from remote receiver URL"),
 			config.usage.remote_fallback_import,
 			_("Import channels and/or EPG from remote receiver URL when receiver is booted")))
-		if config.usage.remote_fallback_enabled.value or config.usage.remote_fallback_import.value:
+		if config.usage.remote_fallback_enabled.value:
 			self.list.append((_("Enable import timer from fallback tuner"),
 				config.usage.remote_fallback_external_timer,
 				_("When enabled the timer from the fallback tuner is imported")))
+			if config.usage.remote_fallback_external_timer.value:
+				self.list.append((_("Select the timer from the fallback tuner by default"),
+					config.usage.remote_fallback_external_timer_default,
+					_("When enabled the timer from the fallback tuner is the default timer")))
 			self.list.append((_("Fallback remote receiver"),
 				self.avahiselect,
 				_("Destination of fallback remote receiver")))
@@ -116,7 +90,7 @@ class SetupFallbacktuner(ConfigListScreen, Screen):
 				self.list.append(("  %s" % _("Fallback remote receiver URL"),
 					config.usage.remote_fallback,
 					_("URL of fallback remote receiver")))
-		if config.usage.remote_fallback_enabled.value and config.usage.remote_fallback_import.value and config.usage.remote_fallback.value:
+		if config.usage.remote_fallback_import.value:
 			self.list.append((_("Import remote receiver URL"),
 				self.avahiselect_seperate,
 				_("URL of fallback remote receiver")))
@@ -131,7 +105,7 @@ class SetupFallbacktuner(ConfigListScreen, Screen):
 				self.list.append(("  %s" % _("Fallback remote receiver URL"),
 					config.usage.remote_fallback_import_url,
 					_("URL of fallback remote receiver")))
-		if config.usage.remote_fallback_enabled.value and config.usage.remote_fallback_import.value:
+		if config.usage.remote_fallback_import.value:
 			self.list.append((_("Also import at reboot/restart enigma2"),
 				config.usage.remote_fallback_import_restart,
 				_("Import channels and/or EPG from remote receiver URL when receiver or enigma2 is restarted")))
@@ -147,6 +121,7 @@ class SetupFallbacktuner(ConfigListScreen, Screen):
 			self.list.append((_("Show notification when import channels was not successful"),
 				config.usage.remote_fallback_nok,
 				_("Show notification when import channels and/or EPG from remote receiver URL did not complete")))
+		if config.usage.remote_fallback_enabled.value and config.usage.remote_fallback.value:
 			self.list.append((_("Customize OpenWebIF settings for fallback tuner"),
 				config.usage.remote_fallback_openwebif_customize,
 				_("When enabled you can customize the OpenWebIf settings for the fallback tuner")))
@@ -160,7 +135,6 @@ class SetupFallbacktuner(ConfigListScreen, Screen):
 				self.list.append(("  %s" % _("Port"),
 					config.usage.remote_fallback_openwebif_port,
 					"  %s" % _("Set the port of the OpenWebif from your fallback tuner")))
-		if config.usage.remote_fallback_enabled.value and config.usage.remote_fallback.value:
 			self.list.append((_("Alternative URLs for DVB-T/C or ATSC"),
 				config.usage.remote_fallback_alternative,
 				_("Set alternative fallback tuners for DVB-T/C or ATSC")))
@@ -209,20 +183,7 @@ class SetupFallbacktuner(ConfigListScreen, Screen):
 						_("URL of fallback remote receiver")))
 		self["config"].list = self.list
 
-	def selectionChanged(self):
-		if self.force_update_list:
-			self["config"].onSelectionChanged.remove(self.selectionChanged)
-			self.createSetup()
-			self["config"].onSelectionChanged.append(self.selectionChanged)
-			self.force_update_list = False
-		if not (isinstance(self["config"].getCurrent()[1], ConfigBoolean) or isinstance(self["config"].getCurrent()[1], ConfigSelection)):
-			self.force_update_list = True
-
-	def changedEntry(self):
-		if isinstance(self["config"].getCurrent()[1], ConfigBoolean) or isinstance(self["config"].getCurrent()[1], ConfigSelection):
-			self.createSetup()
-
-	def run(self):
+	def keySave(self):
 		if self.avahiselect.value == "ip":
 			config.usage.remote_fallback.value = "http://%d.%d.%d.%d:%d" % (tuple(self.ip.value) + (self.port.value,))
 		elif self.avahiselect.value != "url":
@@ -233,7 +194,7 @@ class SetupFallbacktuner(ConfigListScreen, Screen):
 			config.usage.remote_fallback_import_url.value = ""
 		elif self.avahiselect_seperate.value != "url":
 			config.usage.remote_fallback_import_url.value = self.avahiselect_seperate.value
-		if config.usage.remote_fallback_alternative.value and not(self.avahi_dvb_t.value == self.avahi_dvb_c.value == self.avahi_atsc.value == "same"):
+		if config.usage.remote_fallback_alternative.value and not (self.avahi_dvb_t.value == self.avahi_dvb_c.value == self.avahi_atsc.value == "same"):
 			if self.avahi_dvb_t.value == "ip":
 				config.usage.remote_fallback_dvb_t.value = "http://%d.%d.%d.%d:%d" % (tuple(self.ip_dvb_t.value) + (self.port_dvb_t.value,))
 			elif self.avahi_dvb_t.value == "same":
@@ -267,6 +228,7 @@ class SetupFallbacktuner(ConfigListScreen, Screen):
 		config.usage.remote_fallback_nok.save()
 		config.usage.remote_fallback.save()
 		config.usage.remote_fallback_external_timer.save()
+		config.usage.remote_fallback_external_timer_default.save()
 		config.usage.remote_fallback_openwebif_customize.save()
 		config.usage.remote_fallback_openwebif_userid.save()
 		config.usage.remote_fallback_openwebif_password.save()

@@ -2,6 +2,7 @@
 from Plugins.Plugin import PluginDescriptor
 
 from Screens.Screen import Screen
+from Screens.Setup import Setup
 from Screens.MessageBox import MessageBox
 from Components.config import config, ConfigSelection, ConfigYesNo, ConfigSubsection, ConfigText
 from Components.ConfigList import ConfigListScreen
@@ -10,6 +11,7 @@ from Components.Label import Label
 from Components.Pixmap import Pixmap
 from Components.ProgressBar import ProgressBar
 from Components.ServiceList import refreshServiceList
+from Components.Sources.StaticText import StaticText
 from Components.ActionMap import ActionMap
 
 from enigma import eFastScan, eDVBFrontendParametersSatellite, eTimer
@@ -147,7 +149,7 @@ class FastScanStatus(Screen):
 		self.close()
 
 
-class FastScanScreen(ConfigListScreen, Screen):
+class FastScanScreen(Setup):
 	skin = """
 	<screen position="100,115" size="520,290" title="FastScan">
 		<widget name="config" position="10,10" size="500,250" scrollbarMode="showOnDemand" />
@@ -155,18 +157,6 @@ class FastScanScreen(ConfigListScreen, Screen):
 	</screen>"""
 
 	def __init__(self, session):
-		Screen.__init__(self, session)
-
-		self.setTitle(_("FastScan"))
-
-		self["actions"] = ActionMap(["SetupActions", "MenuActions"],
-		{
-			"ok": self.keyGo,
-			"save": self.keySave,
-			"cancel": self.keyCancel,
-			"menu": self.closeRecursive,
-		}, -2)
-
 		lastConfiguration = eval(config.misc.fastscan.last_configuration.value)
 
 		def providerChanged(configEntry):
@@ -196,13 +186,9 @@ class FastScanScreen(ConfigListScreen, Screen):
 		auto_providers = config.misc.fastscan.autoproviders.value.split(",")
 		for provider in providers:
 			self.config_autoproviders[provider[0]] = ConfigYesNo(default=provider[0] in auto_providers)
-		self.list = []
-		ConfigListScreen.__init__(self, self.list, session, self.createSetup)
-		self.createSetup()
+		Setup.__init__(self, session, blue_button={'function': self.startScan, 'helptext': _("Start Fastscan")})
+		self.setTitle(_("FastScan"))
 		self.finished_cb = None
-		self["introduction"] = Label(_("Select your provider, and press OK to start the scan"))
-		self["key_red"] = Label(_("Cancel"))
-		self["key_green"] = Label(_("Save"))
 
 	def createSetup(self):
 		self.list = []
@@ -223,6 +209,7 @@ class FastScanScreen(ConfigListScreen, Screen):
 					if nimmanager.getNimListForSat(transponders[provider[1][0]][3]):
 						self.list.append((_("Enable auto fastscan for %s") % provider[0], self.config_autoproviders[provider[0]]))
 		self["config"].list = self.list
+		self["key_blue"].text = _("Start Fastscan") if self.scan_provider.value else ""
 
 	def saveConfiguration(self):
 		if self.scan_provider.value:
@@ -239,11 +226,6 @@ class FastScanScreen(ConfigListScreen, Screen):
 	def keySave(self):
 		self.saveConfiguration()
 		self.close()
-
-	def keyGo(self):
-		if self.scan_provider.value:
-			self.saveConfiguration()
-			self.startScan()
 
 	def getTransponderParameters(self, number):
 		transponderParameters = eDVBFrontendParametersSatellite()
@@ -263,18 +245,16 @@ class FastScanScreen(ConfigListScreen, Screen):
 		return transponderParameters
 
 	def startScan(self):
-		parameters = tuple(x[1] for x in providers if x[0] == self.scan_provider.value)[0]
-		pid = parameters[1]
-		if self.scan_hd.value and parameters[2]:
-			pid += 1
-		if self.scan_nims.value:
-			self.session.open(FastScanStatus, scanTuner=int(self.scan_nims.value),
-				transponderParameters=self.getTransponderParameters(parameters[0]),
-				scanPid=pid, keepNumbers=self.scan_keepnumbering.value, keepSettings=self.scan_keepsettings.value, createRadioBouquet=self.scan_create_radio_bouquet.value,
-				providerName=self.scan_provider.getText())
-
-	def keyCancel(self):
-		self.close()
+		if self.scan_provider.value:
+			parameters = tuple(x[1] for x in providers if x[0] == self.scan_provider.value)[0]
+			pid = parameters[1]
+			if self.scan_hd.value and parameters[2]:
+				pid += 1
+			if self.scan_nims.value:
+				self.session.open(FastScanStatus, scanTuner=int(self.scan_nims.value),
+					transponderParameters=self.getTransponderParameters(parameters[0]),
+					scanPid=pid, keepNumbers=self.scan_keepnumbering.value, keepSettings=self.scan_keepsettings.value, createRadioBouquet=self.scan_create_radio_bouquet.value,
+					providerName=self.scan_provider.getText())
 
 
 class FastScanAutoScreen(FastScanScreen):

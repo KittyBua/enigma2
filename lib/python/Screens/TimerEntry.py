@@ -8,7 +8,7 @@ from Components.MenuList import MenuList
 from Components.Sources.StaticText import StaticText
 from Components.Label import Label
 from Components.NimManager import nimmanager
-from Components.SystemInfo import SystemInfo
+from Components.SystemInfo import BoxInfo
 from Components.UsageConfig import defaultMoviePath
 from Screens.MovieSelection import getPreferredTagEditor
 from Screens.LocationBox import MovieLocationBox
@@ -23,10 +23,10 @@ from datetime import datetime
 
 
 class TimerEntry(ConfigListScreen, Screen):
-	def __init__(self, session, timer):
+	def __init__(self, session, timer, newEntry=False):
 		Screen.__init__(self, session)
 		self.timer = timer
-
+		self.newEntry = newEntry
 		self.timer.service_ref_prev = self.timer.service_ref
 		self.timer.begin_prev = self.timer.begin
 		self.timer.end_prev = self.timer.end
@@ -104,11 +104,11 @@ class TimerEntry(ConfigListScreen, Screen):
 			repeated = None
 			weekday = int(strftime("%u", localtime(self.timer.begin))) - 1
 			day[weekday] = 1
-		self.timerentry_fallback = ConfigYesNo(default=self.timer.external_prev or config.usage.remote_fallback_external_timer.value and config.usage.remote_fallback.value and not nimmanager.somethingConnected())
+		self.timerentry_fallback = ConfigYesNo(default=self.timer.external_prev or self.newEntry and config.usage.remote_fallback_external_timer.value and config.usage.remote_fallback.value and config.usage.remote_fallback_external_timer_default.value)
 		self.timerentry_justplay = ConfigSelection(choices=[
 			("zap", _("zap")), ("record", _("record")), ("zap+record", _("zap and record"))],
 			default={0: "record", 1: "zap", 2: "zap+record"}[justplay + 2 * always_zap])
-		if SystemInfo["DeepstandbySupport"]:
+		if BoxInfo.getItem("DeepstandbySupport"):
 			shutdownString = _("go to deep standby")
 			choicelist = [("always", _("always")), ("from_standby", _("only from standby")), ("from_deep_standby", _("only from deep standby")), ("never", _("never"))]
 		else:
@@ -213,7 +213,7 @@ class TimerEntry(ConfigListScreen, Screen):
 		self.entryZapWakeup = (_("Wakeup receiver for start timer"), self.timerentry_zapwakeup)
 		if self.timerentry_justplay.value == "zap":
 			self.list.append(self.entryZapWakeup)
-			if SystemInfo["PIPAvailable"]:
+			if BoxInfo.getItem("PIPAvailable"):
 				self.list.append((_("Use as PiP if possible"), self.timerentry_pipzap))
 			self.list.append(self.entryShowEndTime)
 			self["key_blue"].setText(_("Wakeup type"))

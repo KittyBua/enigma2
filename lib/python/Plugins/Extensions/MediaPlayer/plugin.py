@@ -5,7 +5,7 @@ from ServiceReference import ServiceReference
 from Screens.Screen import Screen
 from Screens.HelpMenu import HelpableScreen
 from Screens.MessageBox import MessageBox
-from Screens.InputBox import InputBox
+from Screens.VirtualKeyBoard import VirtualKeyBoard
 from Screens.ChoiceBox import ChoiceBox
 from Screens.InfoBar import InfoBar
 from Screens.InfoBarGenerics import InfoBarSeek, InfoBarScreenSaver, InfoBarAudioSelection, InfoBarCueSheetSupport, InfoBarNotifications, InfoBarSubtitleSupport
@@ -20,7 +20,7 @@ from Components.ServiceEventTracker import ServiceEventTracker, InfoBarBase
 from Components.Playlist import PlaylistIOInternal, PlaylistIOM3U, PlaylistIOPLS
 from Components.AVSwitch import AVSwitch
 from Components.config import config
-from Components.SystemInfo import SystemInfo
+from Components.SystemInfo import BoxInfo
 from Tools.Directories import fileExists, resolveFilename, SCOPE_CONFIG, SCOPE_PLAYLIST, SCOPE_CURRENT_SKIN
 from Tools.BoundFunction import boundFunction
 from Plugins.Extensions.MediaPlayer.settings import MediaPlayerSettings
@@ -130,7 +130,9 @@ class MediaPlayer(Screen, InfoBarBase, InfoBarScreenSaver, InfoBarSeek, InfoBarA
 
 		# 'None' is magic to start at the list of mountpoints
 		defaultDir = config.mediaplayer.defaultDir.getValue()
-		self.filelist = FileList(defaultDir, matchingPattern="(?i)^.*\.(dts|mp3|wav|wave|wv|oga|ogg|flac|m4a|mp2|m2a|wma|ac3|mka|aac|ape|alac|mpg|vob|m4v|mkv|avi|divx|dat|flv|mp4|mov|wmv|asf|3gp|3g2|mpeg|mpe|rm|rmvb|ogm|ogv|m2ts|mts|ts|m3u|e2pls|pls|amr|au|mid|pva|wtv)", useServiceRef=True, additionalExtensions="4098:m3u 4098:e2pls 4098:pls")
+		if defaultDir is not None and not os.path.isdir(defaultDir):
+			defaultDir = None
+		self.filelist = FileList(defaultDir, matchingPattern="(?i)^.*\.(dts|mp3|wav|wave|wv|oga|ogg|stream|flac|m4a|mp2|m2a|wma|ac3|mka|aac|ape|alac|mpg|vob|m4v|mkv|avi|divx|dat|flv|mp4|mov|wmv|asf|3gp|3g2|mpeg|mpe|rm|rmvb|ogm|ogv|m2ts|mts|ts|m3u|e2pls|pls|amr|au|mid|pva|wtv)", useServiceRef=True, additionalExtensions="4098:m3u 4098:e2pls 4098:pls")
 		self["filelist"] = self.filelist
 
 		self.playlist = MyPlayList()
@@ -192,7 +194,7 @@ class MediaPlayer(Screen, InfoBarBase, InfoBarScreenSaver, InfoBarSeek, InfoBarA
 				"prevBouquet": (self.prevBouquet, self.prevBouquetHelpText),
 				"nextBouquet": (self.nextBouquet, self.nextBouquetHelptext),
 				"delete": (self.deletePlaylistEntry, _("Delete playlist entry")),
-				"shift_stop": (self.clear_playlist, _("Clear playlist")),
+				"shift_stop": (self.confirm_clear_playlist, _("Clear playlist")),
 				"shift_record": (self.playlist.PlayListShuffle, _("Shuffle playlist")),
 				"subtitles": (self.subtitleSelection, _("Subtitle selection")),
 			}, -2)
@@ -265,7 +267,7 @@ class MediaPlayer(Screen, InfoBarBase, InfoBarScreenSaver, InfoBarSeek, InfoBarA
 		if InfoBar.instance is not None:
 			self.servicelist = InfoBar.instance.servicelist
 			if self.servicelist and hasattr(self.servicelist, 'dopipzap'):
-				self.pipZapAvailable = SystemInfo.get("NumVideoDecoders", 1) > 1
+				self.pipZapAvailable = BoxInfo.getItem("NumVideoDecoders", 1) > 1
 
 	def prevBouquetHelpText(self):
 		if not self.shown and self.isPiPzap():
@@ -698,7 +700,7 @@ class MediaPlayer(Screen, InfoBarBase, InfoBarScreenSaver, InfoBarSeek, InfoBarA
 		self.updateCurrentInfo()
 
 	def save_playlist(self):
-		self.session.openWithCallback(self.save_playlist2, InputBox, title=_("Please enter filename (empty = use current date)"), windowTitle=_("Save playlist"), text=self.playlistname)
+		self.session.openWithCallback(self.save_playlist2, VirtualKeyBoard, title=_("Please enter filename (empty = use current date)"), text=self.playlistname)
 
 	def save_playlist2(self, name):
 		if name is not None:
@@ -762,6 +764,12 @@ class MediaPlayer(Screen, InfoBarBase, InfoBarScreenSaver, InfoBarSeek, InfoBarA
 			except OSError as e:
 				print("delete failed:", e)
 				self.session.open(MessageBox, _("Delete failed!"), MessageBox.TYPE_ERROR)
+
+	def confirm_clear_playlist(self):
+		def confirm(answer=False):
+			if answer:
+				self.clear_playlist()
+		self.session.openWithCallback(confirm, MessageBox, _("Do you really want to clear this playlist?"), type=MessageBox.TYPE_YESNO, default=False)
 
 	def clear_playlist(self):
 		self.isAudioCD = False

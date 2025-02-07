@@ -14,9 +14,10 @@ from Components.Pixmap import Pixmap
 from Components.ProgressBar import ProgressBar
 from Components.Label import Label
 from Components.ScrollLabel import ScrollLabel
+from Components.SystemInfo import BoxInfo
 from Components.config import config, ConfigBoolean, configfile
 from Screens.LanguageSelection import LanguageWizard
-from enigma import eConsoleAppContainer, eTimer, eActionMap, quitMainloop
+from enigma import eConsoleAppContainer, eTimer, eActionMap
 
 import os
 
@@ -77,17 +78,17 @@ class AutoRestoreWizard(MessageBox):
 
 	def close(self, value):
 		if value:
-			if os.path.isfile("/etc/.doNotAutoInstall"):
-				os.unlink("/etc/.doNotAutoInstall")
-				MessageBox.close(self, 43)
+			if os.path.isfile("/etc/.doNotAutoinstall"):
+				os.unlink("/etc/.doNotAutoinstall")
+				MessageBox.close(self, 44)
 			else:
 				# restore network config first, we need it to autoinstall
-				Console().ePopen('/etc/init.d/settings-restore.sh network')
-				self.session.open(AutoInstall)
+				open('/etc/.doAutoinstall', 'w')
+				MessageBox.close(self, 43)
 		MessageBox.close(self)
 
 
-class AutoInstall(Screen):
+class AutoInstallWizard(Screen):
 	skin = """<screen name="AutoInstall" position="fill" flags="wfNoBorder">
 		<panel position="left" size="5%,*"/>
 		<panel position="right" size="5%,*"/>
@@ -178,13 +179,24 @@ class AutoInstall(Screen):
 			self.container.dataAvail.remove(self.dataAvail)
 		self.container = None
 		self.logfile.close()
-		quitMainloop(43)
+		os.unlink("/etc/.doAutoinstall")
+		self.close(44)
+
+
+class IncorrectBoxInfoWizard(MessageBox):
+	def __init__(self, session):
+		MessageBox.__init__(self, session, _("The enigma.info file for the boxinformation is not available or the content is invalid.\nPress any key to continue?"), type=MessageBox.TYPE_WARNING, timeout=20, simple=True)
+
+	def close(self, value):
+		MessageBox.close(self)
 
 
 if not os.path.isfile("/etc/installed"):
 	from Components.Console import Console
 	Console().ePopen("opkg list_installed | cut -d ' ' -f 1 > /etc/installed;chmod 444 /etc/installed")
 
+wizardManager.registerWizard(IncorrectBoxInfoWizard, not BoxInfo.getItem("checksum"), priority=0)
+wizardManager.registerWizard(AutoInstallWizard, os.path.isfile("/etc/.doAutoinstall"), priority=0)
 wizardManager.registerWizard(AutoRestoreWizard, config.misc.languageselected.value and config.misc.firstrun.value and checkForAvailableAutoBackup(), priority=0)
 wizardManager.registerWizard(LanguageWizard, config.misc.languageselected.value, priority=10)
 if OverscanWizard:

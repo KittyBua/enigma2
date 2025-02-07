@@ -21,6 +21,7 @@ from ServiceReference import ServiceReference
 from enigma import eServiceReference, eEPGCache
 import functools
 
+
 class TimerEditList(Screen):
 	EMPTY = 0
 	ENABLE = 1
@@ -46,9 +47,11 @@ class TimerEditList(Screen):
 		self["key_green"] = StaticText(_("Add"))
 		self["key_yellow"] = StaticText("")
 		self["key_blue"] = StaticText("")
-		self["key_info"] = StaticText("")
+		self["key_menu"] = StaticText(_("MENU"))
+		self["key_info"] = StaticText(_("INFO"))
 
 		self["description"] = Label("")
+		self["event_nr"] = Label("")
 
 		self["actions"] = ActionMap(["OkCancelActions", "DirectionActions", "ShortcutActions", "TimerEditActions"],
 			{
@@ -137,6 +140,7 @@ class TimerEditList(Screen):
 						t.disable()
 				if timer_changed:
 					self.session.nav.RecordTimer.timeChanged(t)
+					self.session.nav.RecordTimer.saveTimer()
 			self.refill()
 
 	def runningEventCallback(self, t, result):
@@ -151,6 +155,7 @@ class TimerEditList(Screen):
 				findNextRunningEvent = True
 				t.disable()
 			self.session.nav.RecordTimer.timeChanged(t)
+			self.session.nav.RecordTimer.saveTimer()
 			t.findRunningEvent = findNextRunningEvent
 			self.refill()
 
@@ -163,6 +168,7 @@ class TimerEditList(Screen):
 		cur = self["timerlist"].getCurrent()
 		if cur:
 			self["Service"].newService(cur.service_ref.ref)
+			self["event_nr"].setText(cur.eit if cur.eit else "")
 			if cur.external:
 				self["key_info"].setText("")
 			else:
@@ -215,6 +221,7 @@ class TimerEditList(Screen):
 				self.key_yellow_choice = self.DISABLE
 		else:
 			self["description"].setText("")
+			self["event_nr"].setText("")
 			if self.key_red_choice != self.EMPTY:
 				self.removeAction("red")
 				self["key_red"].setText("")
@@ -258,7 +265,7 @@ class TimerEditList(Screen):
 			self.list.sort(key=functools.cmp_to_key(eol_compare))
 		else:
 			self.list.sort(key=lambda x: x[0].begin)
-		self["timerlist"].l.setList(self.list)
+		self["timerlist"].setList(self.list)
 		self.updateState()
 
 	def showLog(self):
@@ -335,7 +342,7 @@ class TimerEditList(Screen):
 		self.addTimer(timer)
 
 	def addTimer(self, timer):
-		self.session.openWithCallback(self.finishedAdd, TimerEntry, timer)
+		self.session.openWithCallback(self.finishedAdd, TimerEntry, timer, newEntry=True)
 
 	def finishedEdit(self, answer):
 		print("[TimerEditList] finished edit")

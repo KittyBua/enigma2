@@ -428,7 +428,7 @@ int eMPEGStreamInformation::getStructureEntryFirst(off_t &offset, unsigned long 
 				// Move start of range to *be* the last test (+1 more may be too high!!)
 				i += step;
 				count -= step;
-			} 
+			}
 			else
 				// Keep start of range but change range to that below test
 				count = step;
@@ -649,6 +649,9 @@ int eMPEGStreamInformationWriter::stopSave(void)
 	// streamtime accesspoint is also useless, hence the <=1 instead of empty()
 	if (m_access_points.empty() && (m_streamtime_access_points.size() <= 1))
 		// Nothing to save, don't create an ap file at all
+		return 1;
+	// do not create access points if there is no recording file
+	if (::access(m_filename.c_str(), R_OK) < 0)
 		return 1;
 	std::string ap_filename(m_filename);
 	ap_filename += ".ap";

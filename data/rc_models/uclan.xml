@@ -3,26 +3,29 @@
 		<button name="POWER" pos="26,65" />
 		<button name="MUTE" pos="103,65" />
 
+		<button name="F1" pos="20,91" />
+		<button name="F2" pos="51,91" />
 		<button name="HELP" pos="81,91" />
+		<button name="OPTION" pos="112,91" />
 
 		<button name="1" pos="24,115" />
 		<button name="2" pos="67,115" />
-		<button name="3" pos="110,115" />
-		<button name="4" pos="23,136" />
+		<button name="3" pos="109,115" />
+		<button name="4" pos="24,136" />
 		<button name="5" pos="67,136" />
-		<button name="6" pos="110,136" />
+		<button name="6" pos="109,136" />
 		<button name="7" pos="24,157" />
 		<button name="8" pos="67,157" />
-		<button name="9" pos="110,157" />
-		<button name="ARROWLEFT" pos="23,178" />
+		<button name="9" pos="109,157" />
+		<button name="ARROWLEFT" pos="24,178" />
 		<button name="0" pos="67,178" />
-		<button name="ARROWRIGHT" pos="110,178" />
+		<button name="ARROWRIGHT" pos="109,178" />
 
 		<button name="VOL+" pos="23,214" />
 		<button name="VOL-" pos="23,245" />
 
-		<button name="PVR" pos="66,214" />
-		<button name="EPG" pos="66,245" />
+		<button name="PVR" pos="66,210" />
+		<button name="EPG" pos="66,247" />
 
 		<button name="BOUQUET+" pos="110,214" />
 		<button name="BOUQUET-" pos="110,245" />
@@ -33,7 +36,7 @@
 
 		<button name="LEFT" pos="26,325" />
 		<button name="OK" pos="66,325" />
-		<button name="RIGHT" pos="106,323" />
+		<button name="RIGHT" pos="106,325" />
 
 		<button name="INFO" pos="23,367" />
 		<button name="DOWN" pos="66,364" />
@@ -52,13 +55,13 @@
 		<button name="AUDIO" pos="20,445" />
 		<button name="STOP" pos="51,445" />
 		<button name="RECORD" pos="81,445" />
-		<button name="CONTEXT" pos="112,445" />
+		<button name="PLUGIN" pos="112,445" />
 
 		<button name="TEXT" pos="20,464" />
 		<button name="SUBTITLE" pos="51,464" />
 		<button name="TV" pos="81,464" />
 		<button name="RADIO" pos="81,464" />
-		<button name="FAVORITES" pos="112,464" />
+		<button name="FAV" pos="112,464" />
 
 	</rc>
 </rcs>

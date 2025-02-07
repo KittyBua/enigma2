@@ -27,11 +27,14 @@ class parseXML(ContentHandler, LexicalHandler):
 			self.last_comment = comment
 
 	def startElement(self, name, attrs):
-		for x in ["text", "title", "value", "caption", "description"]:
+		for x in ["text", "title", "value", "caption", "description", "context"]:
 			try:
 				k = attrs[x]
 				if k.strip() != "" and not self.ishex.match(k):
-					attrlist.add((k, self.last_comment))
+					if x == "context":
+						attrlist.add((re.sub(r"(?:(?=(?<=[^A-Z])[A-Z])|(?=Actions|Select))(?!(?<=Pi)P)", " ", k), self.last_comment))
+					else:
+						attrlist.add((k, self.last_comment))
 					self.last_comment = None
 			except KeyError:
 				pass

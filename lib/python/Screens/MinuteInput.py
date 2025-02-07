@@ -4,10 +4,10 @@ from Components.Input import Input
 
 
 class MinuteInput(Screen):
-		def __init__(self, session, basemins=5):
+		def __init__(self, session, basemins=5, maxValue=False, windowTitle=None):
 			Screen.__init__(self, session)
 
-			self["minutes"] = Input(str(basemins), type=Input.NUMBER)
+			self["minutes"] = Input(str(basemins), type=Input.NUMBER, maxValue=maxValue)
 
 			self["actions"] = NumberActionMap(["InputActions", "MinuteInputActions", "TextEntryActions", "KeyboardInputActions"],
 			{
@@ -33,9 +33,11 @@ class MinuteInput(Screen):
 				"cancel": self.cancel
 			})
 
+			if windowTitle is not None:
+				self.setTitle(windowTitle, showPath=False)
+
 		def keyNumberGlobal(self, number):
 			self["minutes"].number(number)
-			pass
 
 		def left(self):
 			self["minutes"].left()

@@ -1,7 +1,7 @@
 import os
 import time
 from Tools.CList import CList
-from Components.SystemInfo import SystemInfo
+from Components.SystemInfo import BoxInfo
 from Components.Console import Console
 from Components import Task
 
@@ -153,14 +153,14 @@ class Harddisk:
 		try:
 			line = readFile(self.sysfsPath('size'))
 			cap = int(line)
-			return cap / 1000 * 512 / 1000
+			return cap // 1000 * 512 // 1000
 		except:
 			dev = self.findMount()
 			if dev:
 				try:
 					stat = os.statvfs(dev)
 					cap = int(stat.f_blocks * stat.f_bsize)
-					return cap / 1000 / 1000
+					return cap // 1000 // 1000
 				except:
 					pass
 		return cap
@@ -171,7 +171,7 @@ class Harddisk:
 			return ""
 		if cap < 1000:
 			return _("%d MB") % cap
-		return _("%.2f GB") % (cap / 1000.0)
+		return _("%.2f GB") % (cap // 1000.0)
 
 	def model(self):
 		try:
@@ -194,7 +194,7 @@ class Harddisk:
 		if dev:
 			try:
 				stat = os.statvfs(dev)
-				return (stat.f_bfree / 1000) * (stat.f_bsize / 1024)
+				return (stat.f_bfree // 1000) * (stat.f_bsize // 1024)
 			except:
 				pass
 		return -1
@@ -468,10 +468,10 @@ class Harddisk:
 		from enigma import eTimer
 
 		# disable HDD standby timer
+		# some external USB bridges require the SCSI protocol
 		if self.bus() == _("External"):
 			Console().ePopen(("sdparm", "sdparm", "--set=SCT=0", self.disk_path))
-		else:
-			Console().ePopen(("hdparm", "hdparm", "-S0", self.disk_path))
+		Console().ePopen(("hdparm", "hdparm", "-S0", self.disk_path))
 		self.timer = eTimer()
 		self.timer.callback.append(self.runIdle)
 		self.idle_running = True
@@ -498,10 +498,10 @@ class Harddisk:
 			self.is_sleeping = True
 
 	def setSleep(self):
+		# some external USB bridges require the SCSI protocol
 		if self.bus() == _("External"):
 			Console().ePopen(("sdparm", "sdparm", "--flexible", "--readonly", "--command=stop", self.disk_path))
-		else:
-			Console().ePopen(("hdparm", "hdparm", "-y", self.disk_path))
+		Console().ePopen(("hdparm", "hdparm", "-y", self.disk_path))
 
 	def setIdleTime(self, idle):
 		self.max_idle_time = idle
@@ -629,7 +629,7 @@ class HarddiskManager:
 			if os.path.exists(devpath + "/removable"):
 				removable = bool(int(readFile(devpath + "/removable")))
 			if os.path.exists(devpath + "/uevent"):
-				uevent = {k.lower():v.strip() for k, v in (l.split('=') for l in open(devpath + "/uevent"))}
+				uevent = {k.lower(): v.strip() for k, v in (l.split('=') for l in open(devpath + "/uevent"))}
 				dev = int(uevent['major'])
 				subdev = False if uevent['devtype'] == "disk" else True
 			else:
@@ -640,7 +640,7 @@ class HarddiskManager:
 			# blacklist non-root eMMC devices
 			if not blacklisted and dev == 179:
 				is_mmc = True
-				if (SystemInfo['BootDevice'] and blockdev.startswith(SystemInfo['BootDevice'])) or subdev:
+				if (BoxInfo.getItem('BootDevice') and blockdev.startswith(BoxInfo.getItem('BootDevice'))) or subdev:
 					blacklisted = True
 			if blockdev[0:2] == 'sr':
 				is_cdrom = True
@@ -715,7 +715,7 @@ class HarddiskManager:
 			if l and (not device[l - 1].isdigit() or device.startswith('mmcblk')):
 				self.hdd.append(Harddisk(device, removable))
 				self.hdd.sort()
-				SystemInfo["Harddisk"] = True
+				BoxInfo.setItem("Harddisk", True)
 		return error, blacklisted, removable, is_cdrom, partitions, medium_found
 
 	def addHotplugAudiocd(self, device, physdev=None):
@@ -734,7 +734,7 @@ class HarddiskManager:
 			p = Partition(mountpoint="/media/audiocd", description=description, force_mounted=True, device=device)
 			self.partitions.append(p)
 			self.on_partition_list_change("add", p)
-			SystemInfo["Harddisk"] = False
+			BoxInfo.setItem("Harddisk", False)
 		return error, blacklisted, removable, is_cdrom, partitions, medium_found
 
 	def removeHotplugPartition(self, device):
@@ -750,7 +750,7 @@ class HarddiskManager:
 					hdd.stop()
 					self.hdd.remove(hdd)
 					break
-			SystemInfo["Harddisk"] = len(self.hdd) > 0
+			BoxInfo.setItem("Harddisk", len(self.hdd) > 0)
 
 	def HDDCount(self):
 		return len(self.hdd)
@@ -946,4 +946,4 @@ def internalHDDNotSleeping(external=False):
 	return state
 
 
-SystemInfo["ext4"] = isFileSystemSupported("ext4")
+BoxInfo.setItem("ext4", isFileSystemSupported("ext4"))

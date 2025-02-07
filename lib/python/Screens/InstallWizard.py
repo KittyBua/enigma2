@@ -10,6 +10,9 @@ from enigma import eDVBDB
 config.misc.installwizard = ConfigSubsection()
 config.misc.installwizard.hasnetwork = ConfigBoolean(default=False)
 config.misc.installwizard.opkgloaded = ConfigBoolean(default=False)
+config.misc.installwizard.downloadchannellist = ConfigBoolean(default=False)
+config.misc.installwizard.selectedchannellist = ConfigSelection(choices={"19e-23e-basis": "Astra1 Astra3 basis", "19e-23e": "Astra 1 Astra 3", "19e-23e-28e": "Astra 1 Astra 2 Astra 3",
+	"13e-19e-23e-28e": "Astra 1 Astra 2 Astra 3 Hotbird", "9e-13e-19e-23e-28e-rotating": "Rotating", "kabelnl": "Kabel-NL"}, default="19e-23e-basis")
 config.misc.installwizard.channellistdownloaded = ConfigBoolean(default=False)
 
 
@@ -36,9 +39,8 @@ class InstallWizard(ConfigListScreen, Screen):
 			self.adapters = [adapter for adapter in iNetwork.getAdapterList() if adapter in ('eth0', 'eth1')]
 			self.checkNetwork()
 		elif self.index == self.STATE_CHOISE_CHANNELLIST:
-			self.enabled = ConfigYesNo(default=True, graphic=False)
-			modes = {"19e-23e-basis": "Astra1 Astra3 basis", "19e-23e": "Astra 1 Astra 3", "19e-23e-28e": "Astra 1 Astra 2 Astra 3", "13e-19e-23e-28e": "Astra 1 Astra 2 Astra 3 Hotbird", "9e-13e-19e-23e-28e-rotating": "Rotating", "kabelnl": "Kabel-NL"}
-			self.channellist_type = ConfigSelection(choices=modes, default="19e-23e-basis")
+			self.enabled = config.misc.installwizard.downloadchannellist
+			self.channellist_type = config.misc.installwizard.selectedchannellist
 			self.createMenu()
 		elif self.index == self.INSTALL_PLUGINS:
 			self.noplugins = ConfigNothing()

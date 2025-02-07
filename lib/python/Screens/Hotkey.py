@@ -1,7 +1,7 @@
 from Components.ActionMap import ActionMap, HelpableActionMap, NumberActionMap
 from Components.Sources.StaticText import StaticText
 from Components.ChoiceList import ChoiceList, ChoiceEntryComponent
-from Components.SystemInfo import SystemInfo
+from Components.SystemInfo import BoxInfo
 from Components.config import config, ConfigSubsection, ConfigText, ConfigYesNo
 from Components.PluginComponent import plugins
 from Screens.ChoiceBox import ChoiceBox
@@ -40,9 +40,9 @@ class hotkey:
 		("Radio", "radio", ""),
 		("Radio" + " " + _("long"), "radio_long", ""),
 		("TV", "showTv", ""),
-		("TV" + " " + _("long"), "showTv_long", SystemInfo["LcdLiveTV"] and "Infobar/ToggleLCDLiveTV" or ""),
+		("TV" + " " + _("long"), "showTv_long", BoxInfo.getItem("LcdLiveTV") and "Infobar/ToggleLCDLiveTV" or ""),
 		("TV2", "toggleTvRadio", ""),
-		("TV2" + " " + _("long"), "toggleTvRadio_long", SystemInfo["LcdLiveTV"] and "Infobar/ToggleLCDLiveTV" or ""),
+		("TV2" + " " + _("long"), "toggleTvRadio_long", BoxInfo.getItem("LcdLiveTV") and "Infobar/ToggleLCDLiveTV" or ""),
 		("Teletext", "text", ""),
 		("Help", "displayHelp", ""),
 		("Help" + " " + _("long"), "displayHelp_long", ""),
@@ -81,6 +81,9 @@ class hotkey:
 		("Skip back", "skip_back", ""),
 		("Skip forward", "skip_forward", ""),
 		("Activate PiP", "activatePiP", ""),
+		("Activate PiP" + " " + _("long"), "activatePiP_long", ""),
+		("History", "history", ""),
+		("History" + " " + _("long"), "history_long", ""),
 		("Timer", "timer", ""),
 		("Timer" + " " + _("long"), "timer_long", ""),
 		("Playlist", "playlist", ""),
@@ -176,6 +179,7 @@ def getHotkeyFunctions():
 	hotkey.functions.append((_("Toggle TV/RADIO mode"), "Infobar/toggleTvRadio", "InfoBar"))
 	hotkey.functions.append((_("Instant recording"), "Infobar/instantRecord", "InfoBar"))
 	hotkey.functions.append((_("Start instant recording"), "Infobar/startInstantRecording", "InfoBar"))
+	hotkey.functions.append((_("Start recording current event"), "Infobar/startRecordingCurrentEvent", "InfoBar"))
 	hotkey.functions.append((_("Activate timeshift End"), "Infobar/activateTimeshiftEnd", "InfoBar"))
 	hotkey.functions.append((_("Activate timeshift end and pause"), "Infobar/activateTimeshiftEndAndPause", "InfoBar"))
 	hotkey.functions.append((_("Start timeshift"), "Infobar/startTimeshift", "InfoBar"))
@@ -188,22 +192,22 @@ def getHotkeyFunctions():
 	hotkey.functions.append((_("Toggle infoBar"), "Infobar/toggleShow", "InfoBar"))
 	hotkey.functions.append((_("Toggle videomode"), "Infobar/ToggleVideoMode", "InfoBar"))
 	hotkey.functions.append((_("Toggle subtitles show/hide"), "Infobar/toggleSubtitleShown", "InfoBar"))
-	if SystemInfo["PIPAvailable"]:
+	if BoxInfo.getItem("PIPAvailable"):
 		hotkey.functions.append((_("Show PiP"), "Infobar/showPiP", "InfoBar"))
 		hotkey.functions.append((_("Swap PiP"), "Infobar/swapPiP", "InfoBar"))
 		hotkey.functions.append((_("Move PiP"), "Infobar/movePiP", "InfoBar"))
 		hotkey.functions.append((_("Toggle PiPzap"), "Infobar/togglePipzap", "InfoBar"))
 	hotkey.functions.append((_("Activate HbbTV (Redbutton)"), "Infobar/activateRedButton", "InfoBar"))
-	if SystemInfo["HasHDMIin"]:
+	if BoxInfo.getItem("HasHDMIin"):
 		hotkey.functions.append((_("Toggle HDMI In"), "Infobar/HDMIIn", "InfoBar"))
-	if SystemInfo["LcdLiveTV"]:
+	if BoxInfo.getItem("LcdLiveTV"):
 		hotkey.functions.append((_("Toggle LCD LiveTV"), "Infobar/ToggleLCDLiveTV", "InfoBar"))
 	hotkey.functions.append((_("Toggle dashed flickering line for this service"), "Infobar/ToggleHideVBI", "InfoBar"))
 	hotkey.functions.append((_("Do nothing"), "Void", "InfoBar"))
-	if SystemInfo["HasHDMI-CEC"]:
+	if BoxInfo.getItem("HasHDMI-CEC"):
 		hotkey.functions.append((_("HDMI-CEC Source Active"), "Infobar/SourceActiveHdmiCec", "InfoBar"))
 		hotkey.functions.append((_("HDMI-CEC Source Inactive"), "Infobar/SourceInactiveHdmiCec", "InfoBar"))
-	if SystemInfo["HasSoftcamInstalled"]:
+	if BoxInfo.getItem("HasSoftcamInstalled"):
 		hotkey.functions.append((_("Softcam Setup"), "SoftcamSetup", "Setup"))
 	hotkey.functions.append((_("HotKey Setup"), "Module/Screens.Hotkey/HotkeySetup", "Setup"))
 	hotkey.functions.append((_("Software update"), "Module/Screens.SoftwareUpdate/UpdatePlugin", "Setup"))
@@ -228,6 +232,7 @@ def getHotkeyFunctions():
 	for plugin in plugins.getPluginsForMenu("gui"):
 		if plugin[2]:
 			hotkey.functions.append((plugin[0], "MenuPlugin/gui/" + plugin[2], "Setup"))
+	hotkey.functions.append((_("Skin Selection"), "Module/Screens.SkinSelector/SkinSelector", "Setup"))
 	hotkey.functions.append((_("PowerMenu"), "Menu/shutdown", "Power"))
 	hotkey.functions.append((_("Standby"), "Module/Screens.Standby/Standby", "Power"))
 	hotkey.functions.append((_("Restart"), "Module/Screens.Standby/TryQuitMainloop/2", "Power"))
@@ -240,16 +245,20 @@ def getHotkeyFunctions():
 	hotkey.functions.append((_("Subtitles Settings"), "Setup/subtitlesetup", "Setup"))
 	hotkey.functions.append((_("Language"), "Module/Screens.LanguageSelection/LanguageSelection", "Setup"))
 	hotkey.functions.append((_("Memory Info"), "Module/Screens.About/MemoryInfo", "Setup"))
-	if SystemInfo["canMultiBoot"]:
+	if BoxInfo.getItem("canMultiBoot"):
 		hotkey.functions.append((_("Multiboot image selector"), "Module/Screens.FlashImage/MultibootSelection", "Setup"))
 	if os.path.isdir("/etc/ppanels"):
 		for x in [x for x in os.listdir("/etc/ppanels") if x.endswith(".xml")]:
 			x = x[:-4]
 			hotkey.functions.append((_("PPanel") + " " + x, "PPanel/" + x, "PPanels"))
 	if os.path.isdir("/usr/script"):
-		for x in [x for x in os.listdir("/usr/script") if x.endswith(".sh")]:
-			x = x[:-3]
-			hotkey.functions.append((_("Shellscript") + " " + x, "Shellscript/" + x, "Shellscripts"))
+		for x in os.listdir("/usr/script"):
+			if x.endswith(".sh"):
+				x = x[:-3]
+				hotkey.functions.append((_("Shellscript") + " " + x, "Shellscript/" + x, "Shellscripts"))
+			if x.endswith(".py"):
+				x = x[:-3]
+				hotkey.functions.append((_("Pythonscript") + " " + x, "Pythonscript/" + x, "Pythonscripts"))
 
 
 config.misc.hotkey = ConfigSubsection()
@@ -670,7 +679,7 @@ class InfoBarHotkey:
 					print("[Hotkey] error during executing module %s, screen %s, %s" % (selected[1], selected[2], e))
 					import traceback
 					traceback.print_exc()
-			elif selected[0] == "SoftcamSetup" and SystemInfo["HasSoftcamInstalled"]:
+			elif selected[0] == "SoftcamSetup" and BoxInfo.getItem("HasSoftcamInstalled"):
 				from Screens.SoftcamSetup import SoftcamSetup
 				self.session.open(SoftcamSetup)
 			elif selected[0] == "Setup":
@@ -705,16 +714,22 @@ class InfoBarHotkey:
 					else:
 						from Screens.Console import Console
 						self.session.open(Console, selected[1] + " shellscript", command, closeOnSuccess=selected[1].startswith('!'), showStartStopText=False)
+			elif selected[0] == "Pythonscript":
+				command = '/usr/script/' + selected[1] + ".py"
+				if os.path.isfile(command):
+					if ".hidden." in command:
+						from enigma import eConsoleAppContainer
+						eConsoleAppContainer().execute("python %s" % command)
+					else:
+						from Screens.Console import Console
+						self.session.open(Console, selected[1] + " pythonscript", "python %s" % command, closeOnSuccess=selected[1].startswith('!'), showStartStopText=False)
 			elif selected[0] == "Menu":
 				from Screens.Menu import MainMenu, mdom
 				root = mdom.getroot()
 				for x in root.findall("menu"):
-					y = x.find("id")
-					if y is not None:
-						id = y.get("val")
-						if id and id == selected[1]:
-							menu_screen = self.session.open(MainMenu, x)
-							break
+					if x.get("key") == selected[1]:
+						menu_screen = self.session.open(MainMenu, x)
+						break
 
 	def showServiceListOrMovies(self):
 		if hasattr(self, "openServiceList"):

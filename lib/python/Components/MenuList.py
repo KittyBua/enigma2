@@ -6,10 +6,9 @@ from enigma import eListboxPythonStringContent, eListbox
 class MenuList(GUIComponent):
 	def __init__(self, list, enableWrapAround=True, content=eListboxPythonStringContent):
 		GUIComponent.__init__(self)
-		self.list = list
 		self.l = content()
-		self.l.setList(self.list)
 		self.onSelectionChanged = []
+		self.setList(list)
 		self.enableWrapAround = enableWrapAround
 
 	def getCurrent(self):

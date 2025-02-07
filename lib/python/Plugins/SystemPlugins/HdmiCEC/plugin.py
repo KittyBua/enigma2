@@ -1,8 +1,16 @@
-from Screens.Screen import Screen
+from os import path
+
+import Components.HdmiCec
+from Components.ActionMap import ActionMap
+from Components.Button import Button
 from Components.ConfigList import ConfigListScreen
 from Components.config import config
 from Components.Label import Label
 from Components.Sources.StaticText import StaticText
+from Plugins.Plugin import PluginDescriptor
+from Screens.LocationBox import LocationBox
+from Screens.Screen import Screen
+
 
 
 class HdmiCECSetupScreen(ConfigListScreen, Screen):
@@ -11,30 +19,19 @@ class HdmiCECSetupScreen(ConfigListScreen, Screen):
 		self.skinName = "Setup"
 		self.setTitle(_("HDMI-CEC setup"))
 
-		from Components.ActionMap import ActionMap
-		from Components.Button import Button
-
-		self["key_red"] = StaticText(_("Cancel"))
-		self["key_green"] = StaticText(_("OK"))
 		self["key_yellow"] = StaticText(_("Set fixed"))
 		self["key_blue"] = StaticText(_("Clear fixed"))
 		self["description"] = Label("")
 
-		self["actions"] = ActionMap(["SetupActions", "ColorActions", "MenuActions"],
+		self["actions"] = ActionMap(["ColorActions"],
 		{
-			"ok": self.keyOk,
-			"save": self.keyGo,
-			"cancel": self.keyCancel,
-			"green": self.keyGo,
-			"red": self.keyCancel,
 			"yellow": self.setFixedAddress,
 			"blue": self.clearFixedAddress,
-			"menu": self.closeRecursive,
 		}, -2)
 
 		self.list = []
 		self.logpath_entry = None
-		ConfigListScreen.__init__(self, self.list, session=self.session, on_change=self.createSetup)
+		ConfigListScreen.__init__(self, self.list, session=self.session, on_change=self.createSetup, fullUI=True)
 		self.createSetup()
 		self.updateAddress()
 
@@ -64,7 +61,16 @@ class HdmiCECSetupScreen(ConfigListScreen, Screen):
 			self.list.append((_("Minimum send interval"), config.hdmicec.minimum_send_interval, _("Delay between CEC commands when sending a series of commands. Some devices require this delay for correct functioning, usually between 50-150ms.")))
 			self.list.append((_("Repeat leave standby messages"), config.hdmicec.repeat_wakeup_timer, _("The command to wake from standby will be sent multiple times.")))
 			self.list.append((_("Send 'sourceactive' before zap timers"), config.hdmicec.sourceactive_zaptimers, _("Command the TV to switch to the correct HDMI input when zap timers activate.")))
-			self.list.append((_("Detect next boxes before standby"), config.hdmicec.next_boxes_detect, _("Before sending the command to switch the TV to standby, the receiver tests if all the other devices plugged to TV are in standby. If they are not, the 'sourceinactive' command will be sent to the TV instead of the 'standby' command.")))
+			self.list.append((_("Detect other boxes before standby"), config.hdmicec.next_boxes_detect, _("Before sending the command to switch the TV to standby, the receiver tests if all the other devices plugged to TV are in standby. If they are not, the 'sourceinactive' command will be sent to the TV instead of the 'standby' command.")))
+			if config.hdmicec.next_boxes_detect.value:
+				for i in range(len(config.hdmicec.ethbox)):
+					self.list.append((8*" " + _("Detect box%s via network") % (i + 1), config.hdmicec.ethbox[i].used, _("For this box, the network connection can also be used for detection.")))
+					if config.hdmicec.ethbox[i].used.value:
+						self.list.append((16*" " + _("IP"), config.hdmicec.ethbox[i].ip, _("OpenWebif is used for detection on box with this IP address.")))
+						self.list.append((16*" " + _("port"), config.hdmicec.ethbox[i].port, _("Port used by OpenWebif on tested box.")))
+			self.list.append((_("Ping device before standby"), config.hdmicec.ethernet_pc_used, _("Before sending the command to switch the TV to standby, the receiver can test if a device connected to the TV responds to a network 'ping'. If it does, instead of the 'standby' command the 'sourceinactive' command will be sent to the TV.")))
+			if config.hdmicec.ethernet_pc_used.value:
+				self.list.append((8 * " " + _("IP"), config.hdmicec.pc_ip, _("'Ping' is used for detection device on this address.")))
 			self.list.append((_("Debug to file"), config.hdmicec.debug, _("If enabled, a log will be kept of CEC protocol traffic ('hdmicec.log')")))
 			self.logpath_entry = (_("Select path for logfile"), config.hdmicec.log_path, _("Press OK to select the save location of the log file."))
 			if config.hdmicec.debug.value != "0":
@@ -72,34 +78,25 @@ class HdmiCECSetupScreen(ConfigListScreen, Screen):
 		self["config"].list = self.list
 
 	def getCurrentDescription(self):
-		description = self["config"].getCurrent()[2] if len(self["config"].getCurrent()) > 2 else ""
+		description = ConfigListScreen.getCurrentDescription(self)
 		return "%s\n%s\n\n%s" % (self.current_address, self.fixed_address, description) if config.hdmicec.enabled.value else description
 
-	def keyGo(self):
-		for x in self["config"].list:
-			x[1].save()
-		self.close()
-
-
-	def keyOk(self):
+	def keySelect(self):
 		currentry = self["config"].getCurrent()
 		if currentry == self.logpath_entry:
 			self.set_path()
 		else:
-			self.keyGo()
+			ConfigListScreen.keySelect(self)
 
 	def setFixedAddress(self):
-		import Components.HdmiCec
 		Components.HdmiCec.hdmi_cec.setFixedPhysicalAddress(Components.HdmiCec.hdmi_cec.getPhysicalAddress())
 		self.updateAddress()
 
 	def clearFixedAddress(self):
-		import Components.HdmiCec
 		Components.HdmiCec.hdmi_cec.setFixedPhysicalAddress("0.0.0.0")
 		self.updateAddress()
 
 	def updateAddress(self):
-		import Components.HdmiCec
 		self.current_address = _("Current CEC address") + ":\t" + Components.HdmiCec.hdmi_cec.getPhysicalAddress()
 		if config.hdmicec.fixed_physical_address.value == "0.0.0.0":
 			self.fixed_address = _("Press yellow button to set CEC address again")
@@ -113,7 +110,6 @@ class HdmiCECSetupScreen(ConfigListScreen, Screen):
 
 	def set_path(self):
 		inhibitDirs = ["/autofs", "/bin", "/boot", "/dev", "/etc", "/lib", "/proc", "/sbin", "/sys", "/tmp", "/usr"]
-		from Screens.LocationBox import LocationBox
 		txt = _("Select directory for logfile")
 		self.session.openWithCallback(self.logPath, LocationBox, text=txt, currDir=config.hdmicec.log_path.value,
 				bookmarks=config.hdmicec.bookmarks, autoAdd=False, editDir=True,
@@ -133,9 +129,6 @@ def startSetup(menuid):
 
 
 def Plugins(**kwargs):
-	from os import path
 	if path.exists("/dev/hdmi_cec") or path.exists("/dev/misc/hdmi_cec0"):
-		import Components.HdmiCec
-		from Plugins.Plugin import PluginDescriptor
 		return [PluginDescriptor(where=PluginDescriptor.WHERE_MENU, fnc=startSetup)]
 	return []

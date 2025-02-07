@@ -8,7 +8,7 @@ from enigma import quitMainloop, eTimer, getDesktop
 import os
 
 
-class OverscanWizard(Screen, ConfigListScreen):
+class OverscanWizard(ConfigListScreen, Screen):
 	def __init__(self, session, timeOut=True):
 		if getDesktop(0).size().height() == 1080:
 			self.skin = """<screen position="fill" flags="wfNoBorder">
@@ -135,7 +135,7 @@ class OverscanWizard(Screen, ConfigListScreen):
 	def TimerTimeout(self):
 		self.countdown -= 1
 		self.setTitle(_("Overscan wizard") + " (%s)" % self.countdown)
-		if not(self.countdown):
+		if not (self.countdown):
 			self.keyCancel()
 
 	def keyLeft(self):

@@ -20,6 +20,7 @@ class Listbox(Renderer):
 		self.__content = None
 		self.__wrap_around = True
 		self.__selection_enabled = True
+		self.scale = None
 		self.__scrollbarMode = "showOnDemand"
 
 	GUI_WIDGET = eListbox
@@ -40,6 +41,9 @@ class Listbox(Renderer):
 		instance.selectionChanged.get().append(self.selectionChanged)
 		self.wrap_around = self.wrap_around # trigger
 		self.selection_enabled = self.selection_enabled # trigger
+		for (attrib, value) in self.skinAttributes:
+			if attrib == "scrollbarMode":
+				self.__scrollbarMode = value
 		self.scrollbarMode = self.scrollbarMode # trigger
 
 	def preWidgetRemove(self, instance):
@@ -83,10 +87,9 @@ class Listbox(Renderer):
 		self.__scrollbarMode = mode
 		if self.instance is not None:
 			self.instance.setScrollbarMode(int(
-				{
-					"showOnDemand": 0,
-					"showAlways": 1,
-					"showNever": 2,
+				{"showOnDemand": eListbox.showOnDemand,
+				  "showAlways": eListbox.showAlways,
+				  "showNever": eListbox.showNever,
 				}[mode]))
 
 	scrollbarMode = property(lambda self: self.__scrollbarMode, setScrollbarMode)
@@ -95,7 +98,9 @@ class Listbox(Renderer):
 		if hasattr(self.source, "selectionEnabled"):
 			self.selection_enabled = self.source.selectionEnabled
 		if hasattr(self.source, "scrollbarMode"):
-			self.scrollbarMode = self.source.scrollbarMode
+			for (attrib, value) in self.skinAttributes:
+				if attrib == "scrollbarMode":
+					self.scrollbarMode = value
 		if len(what) > 1 and isinstance(what[1], str) and what[1] == "style":
 			return
 		if self.content:
@@ -105,3 +110,15 @@ class Listbox(Renderer):
 	def entry_changed(self, index):
 		if self.instance is not None:
 			self.instance.entryChanged(index)
+
+	def applySkin(self, desktop, parent):
+		attribs = []
+		for (attrib, value) in self.skinAttributes[:]:
+			if attrib == "selectionFrame":
+				if value == "none":
+					self.instance.setSelectionBorderHidden()
+			else:
+				attribs.append((attrib, value))
+		self.skinAttributes = attribs
+		self.scale = parent.scale
+		return Renderer.applySkin(self, desktop, parent)

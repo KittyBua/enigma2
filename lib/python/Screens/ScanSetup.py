@@ -3,7 +3,7 @@ from Screens.ServiceScan import ServiceScan
 from Components.config import config, ConfigSubsection, ConfigSelection, ConfigYesNo, ConfigInteger, ConfigSlider, ConfigEnableDisable, ConfigFloat
 from Components.ActionMap import NumberActionMap, ActionMap
 from Components.Sources.StaticText import StaticText
-from Components.SystemInfo import SystemInfo
+from Components.SystemInfo import BoxInfo
 from Components.ConfigList import ConfigListScreen
 from Components.NimManager import nimmanager, getConfigSatlist
 from Components.Label import Label
@@ -314,10 +314,6 @@ class CableTransponderSearchSupport:
 			exe_path = "/usr/bin/%s" % bin_name.split()[0]
 			cmd = "%s --init --scan --verbose --wakeup --inv 2 --bus %d" % (bin_name, bus)
 
-		if not fileExists(exe_path):
-			self.session.open(MessageBox, _("Cable scan executable utility not found '%s'!") % exe_path, MessageBox.TYPE_ERROR)
-			return
-
 		if cableConfig.scan_type.value == "bands":
 			cmd += " --scan-bands "
 			bands = 0
@@ -371,11 +367,17 @@ class CableTransponderSearchSupport:
 			cmd += " --sr "
 			cmd += str(cableConfig.scan_sr_ext2.value)
 			cmd += "000"
-		print(exe_path, " CMD is", cmd)
 
-		self.cable_search_container.execute(cmd)
-		tmpstr = _("Looking for active transponders in the cable network. Please wait...")
+		if fileExists(exe_path):
+			tmpstr = _("Looking for active transponders in the cable network. Please wait...")
+		else:
+			tmpstr = (_("Cable scan executable utility not found '%s'!") % exe_path) + "\n" + _("Please contact the manufacturer for clarification.")
+			cmd = "sleep 5\nexit 0"
 		tmpstr += "\n\n..."
+
+		print("[startCableTransponderSearch] ",exe_path, " CMD is", cmd)
+		self.cable_search_container.execute(cmd)
+
 		self.cable_search_session = self.session.openWithCallback(self.cableTransponderSearchSessionClosed, MessageBox, tmpstr, MessageBox.TYPE_INFO)
 
 
@@ -410,6 +412,7 @@ class TerrestrialTransponderSearchSupport:
 				self.terrestrialTransponderSearch(freq, bandWidth)
 
 	def getTerrestrialTransponderData(self, str):
+		str = str.decode()
 		print("[getTerrestrialTransponderData] ", str)
 		if self.terrestrial_tunerName.startswith("Sundtek"):
 			str = self.remaining_data + str
@@ -604,7 +607,7 @@ class ScanSetup(ConfigListScreen, Screen, CableTransponderSearchSupport, Terrest
 	def __init__(self, session):
 		Screen.__init__(self, session)
 		Screen.setTitle(self, _("Manual Scan"))
-
+		self.skinName = ["ScanSetup", "Setup"]
 		self.finished_cb = None
 		self.updateSatList()
 		self.service = session.nav.getCurrentService()
@@ -624,26 +627,19 @@ class ScanSetup(ConfigListScreen, Screen, CableTransponderSearchSupport, Terrest
 
 		self.session.postScanService = session.nav.getCurrentlyPlayingServiceOrGroup()
 
-		self["key_red"] = StaticText(_("Close"))
 		self["key_green"] = StaticText(_("Scan"))
 
-		self["actions"] = NumberActionMap(["SetupActions", "MenuActions", "ColorActions"],
+		self["actions"] = NumberActionMap(["SetupActions"],
 		{
-			"ok": self.keyGo,
 			"save": self.keyGo,
-			"cancel": self.keyCancel,
-			"red": self.keyCancel,
-			"green": self.keyGo,
-			"menu": self.doCloseRecursive,
 		}, -2)
 
 		self.statusTimer = eTimer()
 		self.statusTimer.callback.append(self.updateStatus)
 
 		self.list = []
-		ConfigListScreen.__init__(self, self.list)
+		ConfigListScreen.__init__(self, self.list, on_change=self.newConfig, fullUI=True)
 		self["introduction"] = Label("")
-		self["description"] = Label("")
 		if self.scan_nims.value == "":
 			self["introduction"].text = _("Nothing to scan! Setup your tuner and try again.")
 			return
@@ -836,7 +832,7 @@ class ScanSetup(ConfigListScreen, Screen, CableTransponderSearchSupport, Terrest
 				if nimmanager.getNimName(nim.slot).startswith("Sundtek"):
 					self.TerrestrialCompleteEntry = (_('Scan options'), self.scan_ter_complete_type)
 					self.list.append(self.TerrestrialCompleteEntry)
-				elif SystemInfo["Blindscan_t2_available"] and nim.isCompatible("DVB-T2") and len(self.terrestrialTransponderGetCmd(nim.slot)):
+				elif BoxInfo.getItem("Blindscan_t2_available") and nim.isCompatible("DVB-T2") and len(self.terrestrialTransponderGetCmd(nim.slot)):
 					self.list.append((_('Blindscan'), self.scan_terrestrial_binary_scan))
 				if self.TerrestrialCompleteEntry is None or self.scan_ter_complete_type.value == "extended":
 					if nim.canBeCompatible("DVB-T2"):
@@ -1004,9 +1000,9 @@ class ScanSetup(ConfigListScreen, Screen, CableTransponderSearchSupport, Terrest
 		self.nim_type_dict = {}
 		# collect all nims which are *not* set to "nothing"
 		for n in nimmanager.nim_slots:
-			modes = [x[:5] for x in n.getTunerTypesEnabled()]
-			if n.config_mode == "nothing":
+			if n.empty or n.config_mode == "nothing":
 				continue
+			modes = [x[:5] for x in n.getTunerTypesEnabled()]
 			if "DVB-S" in modes: # Only do the DVB-S tests below when DVB-S is present in modes. This avoids problems with combined tuners such as Availink AVL6862.
 				if n.config_mode in ("simple", "equal", "advanced") and len(nimmanager.getSatListForNim(n.slot)) < 1:
 					continue
@@ -1274,18 +1270,6 @@ class ScanSetup(ConfigListScreen, Screen, CableTransponderSearchSupport, Terrest
 
 		return True
 
-	def keyLeft(self):
-		ConfigListScreen.keyLeft(self)
-		self.newConfig()
-
-	def keyRight(self):
-		ConfigListScreen.keyRight(self)
-		self.newConfig()
-
-	def handleKeyFileCallback(self, answer):
-		ConfigListScreen.handleKeyFileCallback(self, answer)
-		self.newConfig()
-
 	def updateStatus(self):
 		print("updatestatus")
 
@@ -1470,7 +1454,7 @@ class ScanSetup(ConfigListScreen, Screen, CableTransponderSearchSupport, Terrest
 			elif self.scan_typeterrestrial.value == "complete":
 				if nimmanager.getNimName(nim.slot).startswith("Sundtek") and self.scan_ter_complete_type.value == "all":
 					action = SEARCH_TERRESTRIAL2_TRANSPONDERS
-				elif SystemInfo["Blindscan_t2_available"] and self.scan_terrestrial_binary_scan.value and nim.isCompatible("DVB-T2") and len(self.terrestrialTransponderGetCmd(nim.slot)):
+				elif BoxInfo.getItem("Blindscan_t2_available") and self.scan_terrestrial_binary_scan.value and nim.isCompatible("DVB-T2") and len(self.terrestrialTransponderGetCmd(nim.slot)):
 					action = SEARCH_TERRESTRIAL2_TRANSPONDERS
 				else:
 					getInitialTerrestrialTransponderList(tlist, self.TerrestrialRegion.description[self.TerrestrialRegion.value], int(self.scan_ter.system.value))
@@ -1709,18 +1693,12 @@ class ScanSimple(ConfigListScreen, Screen, CableTransponderSearchSupport, Terres
 	def __init__(self, session):
 		Screen.__init__(self, session)
 		Screen.setTitle(self, _("Automatic Scan"))
-
-		self["key_red"] = StaticText(_("Close"))
+		self.skinName = ["ScanSimple", "Setup"]
 		self["key_green"] = StaticText(_("Scan"))
 
 		self["actions"] = ActionMap(["SetupActions", "MenuActions", "ColorActions"],
 		{
-			"ok": self.keyGo,
 			"save": self.keyGo,
-			"cancel": self.keyCancel,
-			"menu": self.doCloseRecursive,
-			"red": self.keyCancel,
-			"green": self.keyGo,
 		}, -2)
 
 		self.session.postScanService = session.nav.getCurrentlyPlayingServiceOrGroup()
@@ -1756,7 +1734,7 @@ class ScanSimple(ConfigListScreen, Screen, CableTransponderSearchSupport, Terres
 
 			if need_scan:
 				nims_to_scan.append(nim)
-				if nim.isCompatible("DVB-T2") and SystemInfo["Blindscan_t2_available"] and len(self.terrestrialTransponderGetCmd(nim.slot)):
+				if nim.isCompatible("DVB-T2") and BoxInfo.getItem("Blindscan_t2_available") and len(self.terrestrialTransponderGetCmd(nim.slot)):
 					self.t2_nim_found = True
 
 		# we save the config elements to use them on keyGo
@@ -1778,7 +1756,7 @@ class ScanSimple(ConfigListScreen, Screen, CableTransponderSearchSupport, Terres
 			if self.t2_nim_found:
 				self.list.append((_("Blindscan terrestrial (if possible)"), self.scan_terrestrial_binary_scan))
 
-		ConfigListScreen.__init__(self, self.list)
+		ConfigListScreen.__init__(self, self.list, fullUI=True)
 		self["footer"] = Label(_("Press OK to scan"))
 
 	def getNetworksForNim(self, nim):
@@ -1849,7 +1827,7 @@ class ScanSimple(ConfigListScreen, Screen, CableTransponderSearchSupport, Terres
 							action = SEARCH_CABLE_TRANSPONDERS
 							networkid = config.Nims[nim.slot].cable.scan_networkid.value
 					if nim.isCompatible("DVB-T"):
-						if SystemInfo["Blindscan_t2_available"] and self.scan_terrestrial_binary_scan.value and nim.isCompatible("DVB-T2") and len(self.terrestrialTransponderGetCmd(nim.slot)):
+						if BoxInfo.getItem("Blindscan_t2_available") and self.scan_terrestrial_binary_scan.value and nim.isCompatible("DVB-T2") and len(self.terrestrialTransponderGetCmd(nim.slot)):
 							action = SEARCH_TERRESTRIAL2_TRANSPONDERS
 						else:
 							getInitialTerrestrialTransponderList(tlist, nimmanager.getTerrestrialDescription(nim.slot))

@@ -1,7 +1,7 @@
 from enigma import eTimer, eServiceCenter, eServiceReference, pNavigation, getBestPlayableServiceReference, iPlayableService, setPreferredTuner, eStreamServer, iRecordableServicePtr
 from Components.ImportChannels import ImportChannels
 from Components.ParentalControl import parentalControl
-from Components.SystemInfo import SystemInfo
+from Components.SystemInfo import BoxInfo
 from Components.config import config, configfile
 from Tools.BoundFunction import boundFunction
 from Tools.StbHardware import getFPWasTimerWakeup
@@ -14,6 +14,7 @@ import NavigationInstance
 from ServiceReference import ServiceReference, isPlayableForCur
 from Screens.InfoBar import InfoBar
 from Components.Sources.StreamService import StreamServiceList
+from Screens.InfoBarGenerics import streamrelay
 
 # TODO: remove pNavgation, eNavigation and rewrite this stuff in python.
 
@@ -37,17 +38,19 @@ class Navigation:
 		self.currentlyPlayingServiceReference = None
 		self.currentlyPlayingServiceOrGroup = None
 		self.currentlyPlayingService = None
+		self.currentServiceIsStreamRelay = False
 		self.skipServiceReferenceReset = False
 		self.RecordTimer = RecordTimer.RecordTimer()
 		self.__wasTimerWakeup = getFPWasTimerWakeup()
 		self.__isRestartUI = config.misc.RestartUI.value
+		self.__prevWakeupTime = config.misc.prev_wakeup_time.value
 		startup_to_standby = config.usage.startup_to_standby.value
 		wakeup_time_type = config.misc.prev_wakeup_time_type.value
 		self.wakeup_timer_enabled = False
 		if config.usage.remote_fallback_import_restart.value:
 			ImportChannels()
 		if self.__wasTimerWakeup:
-			self.wakeup_timer_enabled = wakeup_time_type == 3 and config.misc.prev_wakeup_time.value
+			self.wakeup_timer_enabled = wakeup_time_type == 3 and self.__prevWakeupTime
 			if not self.wakeup_timer_enabled:
 				RecordTimer.RecordTimerEntry.setWasInDeepStandby()
 		if config.misc.RestartUI.value:
@@ -57,11 +60,15 @@ class Navigation:
 		else:
 			if config.usage.remote_fallback_import.value and not config.usage.remote_fallback_import_restart.value:
 				ImportChannels()
-			if startup_to_standby == "yes" or self.__wasTimerWakeup and config.misc.prev_wakeup_time.value and (wakeup_time_type == 0 or wakeup_time_type == 1 or (wakeup_time_type == 3 and startup_to_standby == "except")):
+			if startup_to_standby == "yes" or (self.__wasTimerWakeup and self.__prevWakeupTime and (wakeup_time_type == 0 or wakeup_time_type == 1 or (wakeup_time_type == 3 and startup_to_standby == "except"))):
 				if not Screens.Standby.inTryQuitMainloop:
 					self.standbytimer = eTimer()
 					self.standbytimer.callback.append(self.gotostandby)
 					self.standbytimer.start(15000, True) # Time increse 15 second for standby.
+		if self.__prevWakeupTime:
+			config.misc.prev_wakeup_time.value = 0
+			config.misc.prev_wakeup_time.save()
+			configfile.save()
 
 	def gotostandby(self):
 		if not Screens.Standby.inStandby and not Screens.Standby.inTryQuitMainloop:
@@ -72,6 +79,9 @@ class Navigation:
 
 	def isRestartUI(self):
 		return self.__isRestartUI
+
+	def prevWakeupTime(self):
+		return self.__prevWakeupTime
 
 	def dispatchEvent(self, i):
 		for x in self.event:
@@ -86,6 +96,9 @@ class Navigation:
 #		print "[Navigation] record_event", rec_service, event
 		for x in self.record_event:
 			x(rec_service, event)
+
+	def restartService(self):
+		self.playService(self.currentlyPlayingServiceOrGroup, forceRestart=True)
 
 	def playService(self, ref, checkParentalControl=True, forceRestart=False, adjust=True):
 		session = None
@@ -143,46 +156,55 @@ class Navigation:
 			else:
 				playref = ref
 			if self.pnav:
-				if not SystemInfo["FCCactive"]:
+				if not BoxInfo.getItem("FCCactive"):
 					self.pnav.stopService()
 				else:
 					self.skipServiceReferenceReset = True
 				self.currentlyPlayingServiceReference = playref
+				playref = streamrelay.streamrelayChecker(playref)
 				self.currentlyPlayingServiceOrGroup = ref
 				if startPlayingServiceOrGroup and startPlayingServiceOrGroup.flags & eServiceReference.isGroup and not ref.flags & eServiceReference.isGroup:
 					self.currentlyPlayingServiceOrGroup = startPlayingServiceOrGroup
 				if InfoBarInstance and InfoBarInstance.servicelist.servicelist.setCurrent(ref, adjust):
 					self.currentlyPlayingServiceOrGroup = InfoBarInstance.servicelist.servicelist.getCurrent()
 				setPriorityFrontend = False
-				if SystemInfo["DVB-T_priority_tuner_available"] or SystemInfo["DVB-C_priority_tuner_available"] or SystemInfo["DVB-S_priority_tuner_available"] or SystemInfo["ATSC_priority_tuner_available"]:
-					str_service = playref.toString()
+				if BoxInfo.getItem("DVB-T_priority_tuner_available") or BoxInfo.getItem("DVB-C_priority_tuner_available") or BoxInfo.getItem("DVB-S_priority_tuner_available") or BoxInfo.getItem("ATSC_priority_tuner_available"):
+					str_service = self.currentlyPlayingServiceReference.toString()
 					if '%3a//' not in str_service and not str_service.rsplit(":", 1)[1].startswith("/"):
-						type_service = playref.getUnsignedData(4) >> 16
+						type_service = self.currentlyPlayingServiceReference.getUnsignedData(4) >> 16
 						if type_service == 0xEEEE:
-							if SystemInfo["DVB-T_priority_tuner_available"] and config.usage.frontend_priority_dvbt.value != "-2":
+							if BoxInfo.getItem("DVB-T_priority_tuner_available") and config.usage.frontend_priority_dvbt.value != "-2":
 								if config.usage.frontend_priority_dvbt.value != config.usage.frontend_priority.value:
 									setPreferredTuner(int(config.usage.frontend_priority_dvbt.value))
 									setPriorityFrontend = True
-							if SystemInfo["ATSC_priority_tuner_available"] and config.usage.frontend_priority_atsc.value != "-2":
+							if BoxInfo.getItem("ATSC_priority_tuner_available") and config.usage.frontend_priority_atsc.value != "-2":
 								if config.usage.frontend_priority_atsc.value != config.usage.frontend_priority.value:
 									setPreferredTuner(int(config.usage.frontend_priority_atsc.value))
 									setPriorityFrontend = True
 						elif type_service == 0xFFFF:
-							if SystemInfo["DVB-C_priority_tuner_available"] and config.usage.frontend_priority_dvbc.value != "-2":
+							if BoxInfo.getItem("DVB-C_priority_tuner_available") and config.usage.frontend_priority_dvbc.value != "-2":
 								if config.usage.frontend_priority_dvbc.value != config.usage.frontend_priority.value:
 									setPreferredTuner(int(config.usage.frontend_priority_dvbc.value))
 									setPriorityFrontend = True
-							if SystemInfo["ATSC_priority_tuner_available"] and config.usage.frontend_priority_atsc.value != "-2":
+							if BoxInfo.getItem("ATSC_priority_tuner_available") and config.usage.frontend_priority_atsc.value != "-2":
 								if config.usage.frontend_priority_atsc.value != config.usage.frontend_priority.value:
 									setPreferredTuner(int(config.usage.frontend_priority_atsc.value))
 									setPriorityFrontend = True
 						else:
-							if SystemInfo["DVB-S_priority_tuner_available"] and config.usage.frontend_priority_dvbs.value != "-2":
+							if BoxInfo.getItem("DVB-S_priority_tuner_available") and config.usage.frontend_priority_dvbs.value != "-2":
 								if config.usage.frontend_priority_dvbs.value != config.usage.frontend_priority.value:
 									setPreferredTuner(int(config.usage.frontend_priority_dvbs.value))
 									setPriorityFrontend = True
-				if self.pnav.playService(playref):
-					print("[Navigation] Failed to start: ", playref.toString())
+				if config.misc.softcam_streamrelay_delay.value and self.currentServiceIsStreamRelay:
+					self.currentServiceIsStreamRelay = False
+					self.currentlyPlayingServiceReference = None
+					self.currentlyPlayingServiceOrGroup = None
+					print("[Navigation] Streamrelay was active -> delay the zap till tuner is freed")
+					self.retryServicePlayTimer = eTimer()
+					self.retryServicePlayTimer.callback.append(boundFunction(self.playService, ref, checkParentalControl, forceRestart, adjust))
+					self.retryServicePlayTimer.start(config.misc.softcam_streamrelay_delay.value, True)
+				elif self.pnav.playService(playref):
+					# print("[Navigation] Failed to start", playref)
 					self.currentlyPlayingServiceReference = None
 					self.currentlyPlayingServiceOrGroup = None
 					if oldref and "://" in oldref.getPath():
@@ -193,6 +215,8 @@ class Navigation:
 				self.skipServiceReferenceReset = False
 				if setPriorityFrontend:
 					setPreferredTuner(int(config.usage.frontend_priority.value))
+				if self.currentlyPlayingServiceReference and self.currentlyPlayingServiceReference.toString() in streamrelay.data:
+					self.currentServiceIsStreamRelay = True
 				return 0
 		elif oldref and InfoBarInstance and InfoBarInstance.servicelist.servicelist.setCurrent(oldref, adjust):
 			self.currentlyPlayingServiceOrGroup = InfoBarInstance.servicelist.servicelist.getCurrent()
@@ -206,13 +230,14 @@ class Navigation:
 
 	def recordService(self, ref, simulate=False):
 		service = None
-		if not simulate:
-			print("[Navigation] recording service: %s" % (str(ref)))
 		if isinstance(ref, ServiceReference):
 			ref = ref.ref
+		if not simulate:
+			print("[Navigation] recording service: %s" % (ref and ref.toString() or "None"))
 		if ref:
 			if ref.flags & eServiceReference.isGroup:
 				ref = getBestPlayableServiceReference(ref, eServiceReference(), simulate)
+			ref = streamrelay.streamrelayChecker(ref)
 			service = ref and self.pnav and self.pnav.recordService(ref, simulate)
 			if service is None:
 				print("[Navigation] record returned non-zero")
@@ -255,4 +280,4 @@ class Navigation:
 		self.stopService()
 
 	def getClientsStreaming(self):
-		return eStreamServer.getInstance() and eStreamServer.getInstance().getConnectedClients()
+		return eStreamServer.getInstance() and [stream for stream in eStreamServer.getInstance().getConnectedClients() if stream[0] != '127.0.0.1']

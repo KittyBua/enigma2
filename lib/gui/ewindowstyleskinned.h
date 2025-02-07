@@ -73,6 +73,7 @@ public:
 	};
 
 	void setColor(int what, const gRGB &back);
+	gRGB getColor(int what);
 
 	void setTitleOffset(const eSize &offset);
 	void setTitleFont(gFont *fnt);
@@ -92,7 +93,7 @@ private:
 	eSize m_title_offset;
 	ePtr<gFont> m_fnt;
 
-	void drawBorder(gPainter &painter, const eRect &size, struct borderSet &border, int where);
+	void drawBorder(gPainter &painter, const eRect &size, struct borderSet &border, int where, int flags);
 };
 
 #endif

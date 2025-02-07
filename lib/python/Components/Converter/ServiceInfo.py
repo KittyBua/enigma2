@@ -1,9 +1,56 @@
 from Components.Converter.Converter import Converter
-from enigma import iServiceInformation, iPlayableService
+from enigma import iServiceInformation, iPlayableService, eServiceReference
 from Screens.InfoBarGenerics import hasActiveSubservicesForCurrentChannel
 from Components.Element import cached
 
+from os import path
+
+
 WIDESCREEN = [3, 4, 7, 8, 0xB, 0xC, 0xF, 0x10]
+
+
+def StdAudioDesc(description):
+	if not description:
+		return ""
+
+	REPLACEMENTS = (
+		("A_", ""),
+		("AC-3", "AC3"),
+		("(ATSC A/52)", ""),
+		("(ATSC A/52B)", ""),
+		("MPEG-1 Layer 2 (MP2)", "MP2"),
+		(" Layer 2 (MP2)", ""),
+		(" Layer 3 (MP3)", "MP3"),
+		("-1", ""),
+		("-2", ""),
+		("2-", ""),
+		("MPEG-4 AAC", "AAC"),
+		("-4 AAC", "AAC"),
+		("4-AAC", "HE-AAC"),
+		("audio", ""),
+		("/L3", ""),
+		("/mpeg", "AAC"),
+		("/x-", ""),
+		("raw", "Dolby TrueHD"),
+		("E-AC3", "AC3+"),
+		("EAC3", "AC3+"),
+		("IPCM", "AC3"),
+		("LPCM", "AC3+"),
+		("AAC_PLUS", "AAC+"),
+		("AAC_LATM", "AAC"),
+		("WMA/PRO", "WMA Pro"),
+		("MPEG", "MPEG1 Layer II"),
+		("MPEG1 Layer II AAC", "AAC"),
+		("MPEG1 Layer IIAAC", "AAC"),
+		("MPEG1 Layer IIMP3", "MP3"),
+	)
+
+	for orig, repl in REPLACEMENTS:
+		description = description.replace(orig, repl)
+	return description
+
+def getVideoHeight(info):
+	return info.getInfo(iServiceInformation.sVideoHeight)
 
 
 class ServiceInfo(Converter):
@@ -66,7 +113,7 @@ class ServiceInfo(Converter):
 				"TsId": (self.TSID, (iPlayableService.evUpdatedInfo,)),
 				"OnId": (self.ONID, (iPlayableService.evUpdatedInfo,)),
 				"Sid": (self.SID, (iPlayableService.evUpdatedInfo,)),
-				"Framerate": (self.FRAMERATE, (iPlayableService.evVideoSizeChanged, iPlayableService.evUpdatedInfo)),
+				"Framerate": (self.FRAMERATE, (iPlayableService.evVideoSizeChanged, iPlayableService.evVideoFramerateChanged, iPlayableService.evUpdatedInfo)),
 				"TransferBPS": (self.TRANSFERBPS, (iPlayableService.evUpdatedInfo)),
 				"HasHBBTV": (self.HAS_HBBTV, (iPlayableService.evUpdatedInfo, iPlayableService.evHBBTVInfo, iPlayableService.evStart)),
 				"AudioTracksAvailable": (self.AUDIOTRACKS_AVAILABLE, (iPlayableService.evUpdatedInfo, iPlayableService.evStart)),
@@ -100,6 +147,13 @@ class ServiceInfo(Converter):
 	def getServiceInfoString(self, info, what, convert=lambda x: "%d" % x):
 		v = info.getInfo(what)
 		if v == -1:
+			if what == iServiceInformation.sFrameRate and path.isfile("/proc/stb/vmpeg/0/framerate"):
+				try:
+					fps = int(open("/proc/stb/vmpeg/0/framerate").readline().strip())
+				except:
+					fps = 0
+				if fps and isinstance(fps, int):
+					return convert(fps)
 			return _("N/A")
 		if v == -2:
 			return info.getInfoString(what)
@@ -108,7 +162,8 @@ class ServiceInfo(Converter):
 	@cached
 	def getBoolean(self):
 		service = self.source.service
-		info = service and service.info()
+		isRef = isinstance(service, eServiceReference)
+		info = service.info() if (service and not isRef) else None
 		if info:
 			if self.type == self.HAS_TELETEXT:
 				tpid = info.getInfo(iServiceInformation.sTXTPID)
@@ -121,8 +176,8 @@ class ServiceInfo(Converter):
 					idx = 0
 					while idx < n:
 						i = audio.getTrackInfo(idx)
-						description = i.getDescription()
-						if description in ("AC3", "AC3+", "DTS", "DTS-HD", "AC-3"):
+						description = StdAudioDesc(i.getDescription())
+						if description and description.split()[0] in ("AC4", "AAC+", "AC3", "AC3+", "Dolby", "DTS", "DTS-HD", "HE-AAC", "WMA"):
 							if self.type == self.IS_MULTICHANNEL:
 								return True
 							elif self.type == self.IS_STEREO:
@@ -221,7 +276,7 @@ class ServiceInfo(Converter):
 				elif self.type == self.YRES:
 					return self.getServiceInfoString(info, iServiceInformation.sVideoHeight)
 				elif self.type == self.FRAMERATE:
-					return self.getServiceInfoString(info, iServiceInformation.sFrameRate, lambda x: _("%d fps") % ((x + 500) / 1000))
+					return self.getServiceInfoString(info, iServiceInformation.sFrameRate, lambda x: _("%d fps") % ((x + 500) // 1000))
 				elif self.type == self.VPID:
 					return self.getServiceInfoString(info, iServiceInformation.sVideoPID)
 		return ""

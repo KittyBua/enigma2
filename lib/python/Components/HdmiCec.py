@@ -1,7 +1,9 @@
 import struct
 import os
 import time
-from Components.config import config, ConfigSelection, ConfigYesNo, ConfigSubsection, ConfigText, ConfigCECAddress, ConfigLocations, ConfigDirectory, ConfigNothing
+from Components.config import config, ConfigSelection, ConfigYesNo, ConfigSubsection, ConfigText, ConfigCECAddress, ConfigLocations, ConfigDirectory, ConfigNothing, ConfigIP, ConfigInteger, ConfigSubList
+import urllib.request
+from Components.Console import Console
 from enigma import eHdmiCEC, eActionMap
 from Tools.StbHardware import getFPWasTimerWakeup
 import NavigationInstance
@@ -13,6 +15,7 @@ LOGFILE = "hdmicec.log"
 
 # CEC Version's table
 CEC = ["1.1", "1.2", "1.2a", "1.3", "1.3a", "1.4", "2.0?", "unknown"]
+
 cmdList = {
 	0x00: "<Polling Message>",
 	0x04: "<Image View On>",
@@ -46,6 +49,10 @@ cmdList = {
 	0x9d: "<Inactive Source>",
 	0x9e: "<CEC Version>",
 	0x9f: "<Get CEC Version>",
+	0xa0: "<Vendor Command With ID>",
+	0xa1: "<Clear External Timer>",
+	0xa2: "<Set External Timer>",
+	0xff: "<Abort>"
 	}
 
 config.hdmicec = ConfigSubsection()
@@ -97,6 +104,20 @@ config.hdmicec.bookmarks = ConfigLocations(default=[LOGPATH])
 config.hdmicec.log_path = ConfigDirectory(LOGPATH)
 config.hdmicec.next_boxes_detect = ConfigYesNo(default=False)
 config.hdmicec.sourceactive_zaptimers = ConfigYesNo(default=False)
+config.hdmicec.ethernet_pc_used = ConfigYesNo(default=False)
+config.hdmicec.pc_ip = ConfigIP(default = [192,168,3,7])
+
+config.hdmicec.ethbox = ConfigSubList()
+def create_box(ip=[192, 168, 1, 1], port=80, used=False):
+    box = ConfigSubsection()
+    box.used = ConfigYesNo(default=used)
+    box.ip = ConfigIP(default=ip)
+    box.port = ConfigInteger(default=port, limits=(1, 65535))
+    return box
+def add_box(ip, port, used=False):
+	config.hdmicec.ethbox.append(create_box(ip=ip, port=port, used=used))
+add_box([192, 168, 3, 41], 80)
+add_box([192, 168, 3, 43], 80)
 
 
 class HdmiCec:
@@ -115,6 +136,12 @@ class HdmiCec:
 		self.repeat = eTimer()
 		self.repeat.timeout.get().append(self.wakeupMessages)
 		self.queue = []
+
+		self.delayEthernetPC = eTimer()
+		self.delayEthernetPC.timeout.get().append(self.ethernetPCActive)
+
+		self.delayEthernetBox = eTimer()
+		self.delayEthernetBox.timeout.get().append(self.ethernetBoxActive)
 
 		self.delay = eTimer()
 		self.delay.timeout.get().append(self.sendStandbyMessages)
@@ -218,14 +245,17 @@ class HdmiCec:
 			cmd = 0x8f
 
 		if cmd:
-			data = data.decode()
+			try:
+				data = data.decode("UTF-8")
+			except:
+				data = data.decode("ISO-8859-1")
 			if config.hdmicec.minimum_send_interval.value != "0":
 				self.queue.append((address, cmd, data))
 				if not self.wait.isActive():
 					self.wait.start(int(config.hdmicec.minimum_send_interval.value), True)
 			else:
 				eHdmiCEC.getInstance().sendMessage(address, cmd, data, len(data))
-			if config.hdmicec.debug.value in["1", "3"]:
+			if config.hdmicec.debug.value in ["1", "3"]:
 				self.debugTx(address, cmd, data)
 
 	def sendCmd(self):
@@ -265,7 +295,7 @@ class HdmiCec:
 
 	def standbyMessages(self):
 		if config.hdmicec.enabled.value:
-			if config.hdmicec.next_boxes_detect.value:
+			if config.hdmicec.next_boxes_detect.value or config.hdmicec.ethernet_pc_used.value:
 				self.secondBoxActive()
 				self.delay.start(1000, True)
 			else:
@@ -292,7 +322,40 @@ class HdmiCec:
 				self.sendMessage(5, "standby")
 
 	def secondBoxActive(self):
+		if config.hdmicec.ethernet_pc_used.value:
+			self.delayEthernetPC.start(100, True)
+		if any(box.used.value for box in config.hdmicec.ethbox):
+			self.delayEthernetBox.start(200, True)
 		self.sendMessage(0, "getpowerstatus")
+
+	def ethernetPCActive(self):
+		def result(data, retval, extra):
+			if retval == 0:
+				self.useStandby = False
+				print("[HDMI-CEC] found PC corresponding from address %s" % ip)
+		if config.hdmicec.ethernet_pc_used.value:
+			ip = "%d.%d.%d.%d" % tuple(config.hdmicec.pc_ip.value)
+			cmd = "ping -c 1 -W 1 %s >/dev/null 2>&1" % ip
+			Console().ePopen(cmd, result)
+
+	def ethernetBoxActive(self):
+		def getEthernetBoxActive(ip, port):
+			try:
+				response = urllib.request.urlopen("http://%s:%d/web/powerstate" % (ip, port))
+				for line in response:
+					if 'false' in line.decode('utf-8'):
+						self.useStandby = False
+						print("[HDMI-CEC] powered ethernet box %s found" % ip)
+			except Exception as e:
+				print("[HDMI-CEC] error", e)
+
+		for box in config.hdmicec.ethbox:
+			if not self.useStandby: # no further testing is needed
+				break
+			if box.used.value:
+				ip = "%d.%d.%d.%d" % tuple(box.ip.value)
+				port = box.port.value
+				getEthernetBoxActive(ip, port)
 
 	def onLeaveStandby(self):
 		self.wakeupMessages()
@@ -456,7 +519,10 @@ class HdmiCec:
 			if keyCode == 115 or keyCode == 114 or keyCode == 113:
 				cmd = 0x45
 		if cmd:
-			data =data.decode()
+			try:
+				data = data.decode("UTF-8")
+			except:
+				data = data.decode("ISO-8859-1")
 			if config.hdmicec.minimum_send_interval.value != "0":
 				self.queueKeyEvent.append((self.volumeForwardingDestination, cmd, data))
 				repeat = int(config.hdmicec.volume_forwarding_repeat.value)
@@ -467,7 +533,7 @@ class HdmiCec:
 					self.waitKeyEvent.start(int(config.hdmicec.minimum_send_interval.value), True)
 			else:
 				eHdmiCEC.getInstance().sendMessage(self.volumeForwardingDestination, cmd, data, len(data))
-			if config.hdmicec.debug.value in["2", "3"]:
+			if config.hdmicec.debug.value in ["2", "3"]:
 				self.debugTx(self.volumeForwardingDestination, cmd, data)
 			return 1
 		else:
@@ -483,7 +549,7 @@ class HdmiCec:
 		txt = self.now(True) + self.opCode(cmd, True) + " " + "%02X" % (cmd) + " "
 		tmp = ""
 		if len(data):
-			if cmd in[0x32, 0x47]:
+			if cmd in [0x32, 0x47]:
 				for i in range(len(data)):
 					tmp += "%s" % data[i]
 			else:
@@ -502,7 +568,7 @@ class HdmiCec:
 			else:
 				txt += self.opCode(cmd) + " " + "%02X" % (cmd) + " "
 			for i in range(length - 1):
-				if cmd in[0x32, 0x47]:
+				if cmd in [0x32, 0x47]:
 					txt += "%s" % data[i]
 				elif cmd == 0x9e:
 					txt += "%02X" % ord(data[i]) + 3 * " " + "[version: %s]" % CEC[ord(data[i])]

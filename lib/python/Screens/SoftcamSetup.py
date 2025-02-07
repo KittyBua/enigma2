@@ -1,4 +1,4 @@
-from Screens.Screen import Screen
+from Screens.Setup import Setup
 from Screens.MessageBox import MessageBox
 from Components.ConfigList import ConfigListScreen
 from Components.ActionMap import ActionMap
@@ -13,37 +13,10 @@ from Tools.camcontrol import CamControl
 from enigma import eTimer
 
 
-class SoftcamSetup(Screen, ConfigListScreen):
-	skin = """
-	<screen name="SoftcamSetup" position="center,center" size="560,550" >
-		<widget name="config" position="5,10" size="550,180" />
-		<widget name="info" position="5,200" size="550,340" font="Fixed;18" />
-		<ePixmap name="red" position="0,510" zPosition="1" size="140,40" pixmap="buttons/red.png" transparent="1" alphatest="on" />
-		<ePixmap name="green" position="140,510" zPosition="1" size="140,40" pixmap="buttons/green.png" transparent="1" alphatest="on" />
-		<widget objectTypes="key_red,StaticText" source="key_red" render="Label" position="0,510" zPosition="2" size="140,40" valign="center" halign="center" font="Regular;21" transparent="1" shadowColor="black" shadowOffset="-1,-1" />
-		<widget objectTypes="key_green,StaticText" source="key_green" render="Label" position="140,510" zPosition="2" size="140,40" valign="center" halign="center" font="Regular;21" transparent="1" shadowColor="black" shadowOffset="-1,-1" />
-		<widget objectTypes="key_blue,StaticText" source="key_blue" render="Label"  position="420,510" zPosition="2" size="140,40" valign="center" halign="center" font="Regular;21" transparent="1" shadowColor="black" shadowOffset="-1,-1"/>
-		<widget objectTypes="key_blue,StaticText" source="key_blue" render="Pixmap" pixmap="buttons/blue.png"  position="420,510" zPosition="1" size="140,40" transparent="1" alphatest="on">
-			<convert type="ConditionalShowHide"/>
-		</widget>
-	</screen>"""
-
+class SoftcamSetup(Setup):
 	def __init__(self, session):
-		Screen.__init__(self, session)
-
+		Setup.__init__(self, session, blue_button={'function': self.key_blue, 'helptext': _("Show softcam information")})
 		self.setTitle(_("Softcam setup"))
-
-		self["actions"] = ActionMap(["OkCancelActions", "ColorActions", "CiSelectionActions"],
-			{
-				"cancel": self.cancel,
-				"green": self.save,
-				"red": self.cancel,
-				"blue": self.ppanelShortcut,
-			}, -1)
-
-		self.list = []
-		ConfigListScreen.__init__(self, self.list, session=session, on_change=self.changedEntry)
-
 		self.softcam = CamControl('softcam')
 		self.cardserver = CamControl('cardserver')
 
@@ -57,25 +30,19 @@ class SoftcamSetup(Screen, ConfigListScreen):
 		softcams = self.softcam.getList()
 		cardservers = self.cardserver.getList()
 
-		self.softcams = ConfigSelection(choices=softcams)
-		self.softcams.value = self.softcam.current()
+		self.softcams = ConfigSelection(default=self.softcam.current(), choices=softcams)
 
 		self.softcams_text = _("Select Softcam")
 		self.list.append((self.softcams_text, self.softcams))
 		if cardservers:
-			self.cardservers = ConfigSelection(choices=cardservers)
-			self.cardservers.value = self.cardserver.current()
+			self.cardservers = ConfigSelection(default=self.cardserver.current(), choices=cardservers)
 			self.list.append((_("Select Card Server"), self.cardservers))
 
 		self.list.append((_("Restart softcam"), ConfigAction(self.restart, "s")))
 		if cardservers:
 			self.list.append((_("Restart cardserver"), ConfigAction(self.restart, "c")))
 			self.list.append((_("Restart both"), ConfigAction(self.restart, "sc")))
-
-		self["key_red"] = StaticText(_("Cancel"))
-		self["key_green"] = StaticText(_("OK"))
-		self["key_blue"] = StaticText()
-		self.onShown.append(self.blueButton)
+		self.blueButton()
 
 	def changedEntry(self):
 		if self["config"].getCurrent()[0] == self.softcams_text:
@@ -92,7 +59,7 @@ class SoftcamSetup(Screen, ConfigListScreen):
 		if newEcmFound:
 			self["info"].setText("".join(ecmInfo))
 
-	def ppanelShortcut(self):
+	def key_blue(self):
 		ppanelFileName = '/etc/ppanels/' + self.softcams.value + '.xml'
 		if "oscam" in self.softcams.value.lower() and os.path.isfile(resolveFilename(SCOPE_PLUGINS, 'Extensions/OscamStatus/plugin.pyc')):
 			from Plugins.Extensions.OscamStatus.plugin import OscamStatus
@@ -146,14 +113,7 @@ class SoftcamSetup(Screen, ConfigListScreen):
 		self.close()
 		self.session.nav.playService(self.oldref, adjust=False)
 
-	def restartCardServer(self):
-		if hasattr(self, 'cardservers'):
-			self.restart("c")
-
-	def restartSoftcam(self):
-		self.restart("s")
-
-	def save(self):
+	def saveAll(self):
 		what = ''
 		if hasattr(self, 'cardservers') and (self.cardservers.value != self.cardserver.current()):
 			what = 'sc'

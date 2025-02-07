@@ -8,7 +8,7 @@ from Components.NimManager import nimmanager
 from Components.About import about
 from Components.ScrollLabel import ScrollLabel
 from Components.Button import Button
-from Components.SystemInfo import SystemInfo
+from Components.SystemInfo import BoxInfo
 
 from Components.Label import Label
 from Components.ProgressBar import ProgressBar
@@ -25,6 +25,7 @@ import glob
 API_GITHUB = 0
 API_GITLAB = 1
 
+
 class About(Screen):
 	def __init__(self, session):
 		Screen.__init__(self, session)
@@ -35,6 +36,7 @@ class About(Screen):
 		cpu = about.getCPUInfoString()
 		AboutText += _("CPU: ") + cpu + "\n"
 		AboutText += _("Image: ") + about.getImageTypeString() + "\n"
+		AboutText += _("OE Version: ") + about.getOEVersionString() + "\n"
 		AboutText += _("Build date: ") + about.getBuildDateString() + "\n"
 		AboutText += _("Last update: ") + about.getUpdateDateString() + "\n"
 
@@ -42,12 +44,7 @@ class About(Screen):
 		# AboutText += _("Installed: ") + about.getFlashDateString() + "\n"
 
 		EnigmaVersion = about.getEnigmaVersionString()
-		EnigmaVersion = EnigmaVersion.rsplit("-", EnigmaVersion.count("-") - 2)
-		if len(EnigmaVersion) == 3:
-			EnigmaVersion = EnigmaVersion[0] + " (" + EnigmaVersion[2] + "-" + EnigmaVersion[1] + ")"
-		else:
-			EnigmaVersion = EnigmaVersion[0] + " (" + EnigmaVersion[1] + ")"
-		EnigmaVersion = _("Enigma version: ") + EnigmaVersion
+		EnigmaVersion = "%s%s (%s)" % (_("Enigma version: "), EnigmaVersion[:10], EnigmaVersion[11:])
 		self["EnigmaVersion"] = StaticText(EnigmaVersion)
 		AboutText += "\n" + EnigmaVersion + "\n"
 
@@ -62,16 +59,17 @@ class About(Screen):
 		self["ffmpegVersion"] = StaticText(ffmpegVersion)
 
 		player = None
-		if cpu.upper().startswith('HI') or os.path.isdir('/proc/hisi'):
+
+		if os.path.isfile('/var/lib/opkg/info/enigma2-plugin-systemplugins-servicemp3.list'):
+			if GStreamerVersion:
+				player = _("Media player") + ": Gstreamer, " + _("version") + " " + GStreamerVersion
+		if os.path.isfile('/var/lib/opkg/info/enigma2-plugin-systemplugins-servicehisilicon.list'):
 			if os.path.isdir("/usr/lib/hisilicon") and glob.glob("/usr/lib/hisilicon/libavcodec.so.*"):
 				player = _("Media player") + ": ffmpeg, " + _("Hardware Accelerated")
 			elif ffmpegVersion and ffmpegVersion[0].isdigit():
 				player = _("Media player") + ": ffmpeg, " + _("version") + " " + ffmpegVersion
 
 		if player is None:
-			if GStreamerVersion:
-				player = _("Media player") + ": Gstreamer, " + _("version") + " " + GStreamerVersion
-			else:
 				player = _("Media player") + ": " + _("Not Installed")
 
 		AboutText += player + "\n"
@@ -83,9 +81,7 @@ class About(Screen):
 		AboutText += _("Enigma debug level: %d\n") % eGetEnigmaDebugLvl()
 
 		fp_version = getFPVersion()
-		if fp_version is None:
-			fp_version = ""
-		elif fp_version != 0:
+		if fp_version != None and fp_version not in (0, "0"):
 			fp_version = _("Frontprocessor version: %s") % fp_version
 			AboutText += fp_version + "\n"
 
@@ -125,7 +121,7 @@ class About(Screen):
 		AboutText += hddinfo + "\n\n" + _("Network Info:")
 		for x in about.GetIPsFromNetworkInterfaces():
 			AboutText += "\n" + x[0] + ": " + x[1]
-		if SystemInfo["HasHDMI-CEC"] and config.hdmicec.enabled.value:
+		if BoxInfo.getItem("HasHDMI-CEC") and config.hdmicec.enabled.value:
 			address = config.hdmicec.fixed_physical_address.value if config.hdmicec.fixed_physical_address.value != "0.0.0.0" else _("not set")
 			AboutText += "\n\n" + _("HDMI-CEC address") + ": " + address
 
@@ -144,7 +140,9 @@ class About(Screen):
 				"blue": self.showMemoryInfo,
 				"yellow": self.showTroubleshoot,
 				"up": self["AboutScrollLabel"].pageUp,
-				"down": self["AboutScrollLabel"].pageDown
+				"down": self["AboutScrollLabel"].pageDown,
+				"left": self["AboutScrollLabel"].pageUp,
+				"right": self["AboutScrollLabel"].pageDown
 			})
 
 	def showTranslationInfo(self):
@@ -219,7 +217,7 @@ class CommitInfo(Screen):
 
 		# get the branch to display from the Enigma version
 		try:
-			branch = "?sha=" + "-".join(about.getEnigmaVersionString().split("-")[3:])
+			branch = f"?sha={about.getEnigmaBranchString()}"
 		except:
 			branch = ""
 		branch_e2plugins = "?sha=python3"
@@ -229,6 +227,7 @@ class CommitInfo(Screen):
 			("https://api.github.com/repos/openpli/enigma2/commits" + branch, "Enigma2", API_GITHUB),
 			("https://api.github.com/repos/openpli/openpli-oe-core/commits" + branch, "Openpli Oe Core", API_GITHUB),
 			("https://api.github.com/repos/openpli/enigma2-plugins/commits" + branch_e2plugins, "Enigma2 Plugins", API_GITHUB),
+			("https://api.github.com/repos/openpli/enigma2-binary-plugins/commits" + branch_e2plugins, "Enigma2 Binary Plugins", API_GITHUB),
 			("https://api.github.com/repos/openpli/aio-grab/commits", "Aio Grab", API_GITHUB),
 			("https://api.github.com/repos/openpli/enigma2-plugin-extensions-epgimport/commits", "Plugin EPGImport", API_GITHUB),
 			("https://api.github.com/repos/littlesat/skin-PLiHD/commits", "Skin PLi HD", API_GITHUB),
@@ -457,7 +456,12 @@ class Troubleshoot(Screen):
 		self["AboutScrollLabel"].setText("")
 		self.setTitle("%s - %s" % (_("Troubleshoot"), self.titles[self.commandIndex]))
 		command = self.commands[self.commandIndex]
-		if command.startswith("cat "):
+		if command == "boxinfo":
+			text = ""
+			for item in BoxInfo.getItemsList():
+				text += '%s = %s %s%s' % (item, str(BoxInfo.getItem(item)), type(BoxInfo.getItem(item)), " [immutable]\n" if item in BoxInfo.getEnigmaInfoList() else "\n")
+			self["AboutScrollLabel"].setText(text)
+		elif command.startswith("cat "):
 			try:
 				self["AboutScrollLabel"].setText(open(command[4:], "r").read())
 			except:
@@ -484,8 +488,8 @@ class Troubleshoot(Screen):
 		return [x for x in sorted(glob.glob("/mnt/hdd/*.log"), key=lambda x: os.path.isfile(x) and os.path.getmtime(x))] + (os.path.isfile(home_root) and [home_root] or []) + (os.path.isfile(tmp) and [tmp] or [])
 
 	def updateOptions(self):
-		self.titles = ["dmesg", "ifconfig", "df", "top", "ps", "messages"]
-		self.commands = ["dmesg", "ifconfig", "df -h", "top -n 1", "ps -l", "cat /var/volatile/log/messages"]
+		self.titles = ["dmesg", "ifconfig", "df", "top", "ps", "messages", "enigma info", "BoxInfo"]
+		self.commands = ["dmesg", "ifconfig", "df -h", "top -n 1", "ps -l", "cat /var/volatile/log/messages", "cat /usr/lib/enigma.info", "boxinfo"]
 		install_log = "/home/root/autoinstall.log"
 		if os.path.isfile(install_log):
 				self.titles.append("%s" % install_log)

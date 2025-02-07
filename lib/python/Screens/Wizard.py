@@ -9,6 +9,7 @@ from Components.ActionMap import NumberActionMap
 from Components.MenuList import MenuList
 from Components.ConfigList import ConfigList
 from Components.Sources.List import List
+from Components.config import ConfigSelection
 from enigma import eTimer, eEnv
 
 from xml.sax import make_parser
@@ -243,7 +244,7 @@ class Wizard(Screen):
 
 	def red(self):
 		print("red")
-		pass
+		self.back()
 
 	def green(self):
 		print("green")
@@ -255,7 +256,7 @@ class Wizard(Screen):
 
 	def blue(self):
 		print("blue")
-		pass
+		self.ok(keySelect=False)
 
 	def deleteForward(self):
 		self.resetCounter()
@@ -323,6 +324,9 @@ class Wizard(Screen):
 		if self.updateValues not in self.onShown:
 			self.onShown.append(self.updateValues)
 
+		if self.configInstance:
+			self.configInstance.saveAll()
+
 		if self.showConfig:
 			if self.wizard[currStep]["config"]["type"] == "dynamic":
 				eval("self." + self.wizard[currStep]["config"]["evaluation"])()
@@ -355,7 +359,7 @@ class Wizard(Screen):
 		if print_now:
 			print("Now: " + str(self.currStep))
 
-	def ok(self):
+	def ok(self, keySelect=True):
 		print("OK")
 		if self.disableKeys:
 			return
@@ -375,10 +379,15 @@ class Wizard(Screen):
 						self.onShown.remove(self.updateValues)
 					self.configInstance.runAsync(self.finished)
 					return
-				else:
+				elif self.configInstance.__class__.__name__ == "InstallWizard" and self.wizard[currStep]["config"]["args"] != '1' or not keySelect:
 					self.configInstance.run()
 					if hasattr(self.configInstance, "doNextStep") and not self.configInstance.doNextStep:
 						return
+				elif keySelect:
+					self.currentConfigIndex = self["config"].getCurrentIndex()
+					self.configInstance.keySelect()
+					self.updateValues()
+					return
 		self.finished()
 
 	def keyNumberGlobal(self, number):
@@ -445,7 +454,7 @@ class Wizard(Screen):
 
 		if self.showConfig and self.wizard[self.currStep]["config"]["screen"] is not None:
 			self["config"].instance.moveSelection(self["config"].instance.moveUp)
-		elif self.showList and len(self.wizard[self.currStep]["evaluatedlist"]) > 0:
+		elif self.showList and "evaluatedlist" in self.wizard[self.currStep] and len(self.wizard[self.currStep]["evaluatedlist"]) > 0:
 			if "onselect" in self.wizard[self.currStep]:
 				self.selection = self["list"].current[-1]
 				print("self.selection:", self.selection)
@@ -608,6 +617,7 @@ class Wizard(Screen):
 						print("clearConfigList", self.configInstance["config"], self["config"])
 						self.configInstance["config"] = self["config"]
 						self.configInstance["config"].onSelectionChanged = callbacks
+						self.configInstance.keySelectionCallback = self.ChangeConfigValueCallback
 						print("clearConfigList", self.configInstance["config"], self["config"])
 						self["config"].setCurrentIndex(0)
 				else:
@@ -652,9 +662,9 @@ class Wizard(Screen):
 	def KeyText(self):
 		from Screens.VirtualKeyBoard import VirtualKeyBoard
 		self.currentConfigIndex = self["config"].getCurrentIndex()
-		self.session.openWithCallback(self.VirtualKeyBoardCallback, VirtualKeyBoard, title=self["config"].getCurrent()[0], text=self["config"].getCurrent()[1].getValue())
+		self.session.openWithCallback(self.ChangeConfigValueCallback, VirtualKeyBoard, title=self["config"].getCurrent()[0], text=self["config"].getCurrent()[1].getValue())
 
-	def VirtualKeyBoardCallback(self, callback=None):
+	def ChangeConfigValueCallback(self, callback=None):
 		if callback is not None and len(callback):
 			if isinstance(self["config"].getCurrent()[1], ConfigText) or isinstance(self["config"].getCurrent()[1], ConfigPassword):
 				if "HelpWindow" in self:
@@ -664,8 +674,13 @@ class Wizard(Screen):
 						self["config"].getCurrent()[1].help_window.instance.move(ePoint(helpwindowpos[0], helpwindowpos[1]))
 			self["config"].instance.moveSelectionTo(self.currentConfigIndex)
 			self["config"].setCurrentIndex(self.currentConfigIndex)
-			self["config"].getCurrent()[1].setValue(callback)
+			if isinstance(self["config"].getCurrent()[1], ConfigSelection):
+				self["config"].getCurrent()[1].setValue(callback[1])
+			else:
+				self["config"].getCurrent()[1].setValue(callback)
 			self["config"].invalidate(self["config"].getCurrent())
+			if self.configInstance:
+			    self.configInstance.entryChanged()
 
 
 class WizardManager:

@@ -9,7 +9,7 @@ from Components.config import config
 from Components.AVSwitch import AVSwitch
 from Components.Console import Console
 from Components.ImportChannels import ImportChannels
-from Components.SystemInfo import SystemInfo
+from Components.SystemInfo import BoxInfo
 from Components.Sources.StreamService import StreamServiceList
 from Components.Task import job_manager
 from Tools.Directories import mediafilesInUse
@@ -107,7 +107,9 @@ class StandbyScreen(Screen):
 			del self.session.pip
 		self.session.pipshown = False
 
-		if SystemInfo["ScartSwitch"]:
+		self.infoBarInstance and hasattr(self.infoBarInstance, "sleepTimer") and self.infoBarInstance.sleepTimer.stop()
+
+		if BoxInfo.getItem("ScartSwitch"):
 			self.avswitch.setInput("SCART")
 		else:
 			self.avswitch.setInput("AUX")
@@ -283,7 +285,7 @@ def getReasons(session, retvalue=QUIT_SHUTDOWN):
 			reasons.append((ngettext("%d job is running in the background!", "%d jobs are running in the background!", jobs) % jobs))
 	if checkTimeshiftRunning():
 		reasons.append(_("You seem to be in timeshift!"))
-	if eStreamServer.getInstance().getConnectedClients() or StreamServiceList:
+	if [stream for stream in eStreamServer.getInstance().getConnectedClients() if stream[0] != '127.0.0.1'] or StreamServiceList:
 		reasons.append(_("Client is streaming from this box!"))
 	if not reasons and mediafilesInUse(session) and retvalue in (QUIT_SHUTDOWN, QUIT_REBOOT, QUIT_UPGRADE_FP, QUIT_UPGRADE_PROGRAM):
 		reasons.append(_("A file from media is in use!"))
@@ -341,12 +343,15 @@ class TryQuitMainloop(MessageBox):
 				if not inStandby:
 					if os.path.exists("/usr/script/standby_enter.sh"):
 						Console().ePopen("/usr/script/standby_enter.sh")
-					if SystemInfo["HasHDMI-CEC"] and config.hdmicec.enabled.value and ((config.hdmicec.control_tv_standby.value and config.hdmicec.next_boxes_detect.value) or config.hdmicec.handle_deepstandby_events.value != "no"):
+					if BoxInfo.getItem("HasHDMI-CEC") and config.hdmicec.enabled.value and ((config.hdmicec.control_tv_standby.value and (config.hdmicec.next_boxes_detect.value or config.hdmicec.ethernet_pc_used.value)) or config.hdmicec.handle_deepstandby_events.value != "no"):
 						if config.hdmicec.control_tv_standby.value and config.hdmicec.next_boxes_detect.value:
 							import Components.HdmiCec
 							Components.HdmiCec.hdmi_cec.secondBoxActive()
+						if not hasattr(self, "quitScreen"):
+							self.quitScreen = self.session.instantiateDialog(QuitMainloopScreen)
+							self.quitScreen.show()
 						self.delay = eTimer()
-						self.delay.timeout.callback.append(self.quitMainloop)
+						self.delay.timeout.callback.append(self.quitMainloopDelay)
 						self.delay.start(1500, True)
 						return
 			elif not inStandby:
@@ -355,6 +360,10 @@ class TryQuitMainloop(MessageBox):
 			self.quitMainloop()
 		else:
 			MessageBox.close(self, True)
+
+	def quitMainloopDelay(self):
+		self.session.nav.stopService()
+		quitMainloop(self.retval)
 
 	def quitMainloop(self):
 		self.session.nav.stopService()
@@ -369,6 +378,7 @@ class TryQuitMainloop(MessageBox):
 	def __onHide(self):
 		global inTryQuitMainloop
 		inTryQuitMainloop = False
+
 
 class SwitchToAndroid(Screen):
 	def __init__(self, session):

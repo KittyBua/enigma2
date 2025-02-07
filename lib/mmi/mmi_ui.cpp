@@ -73,11 +73,12 @@ int eMMI_UI::processMMIData(int slot_id, const unsigned char *tag, const void *d
 			eDebug("[eMMI_UI] %d bytes text", textlen);
 		if ((d+textlen) > max)
 			break;
-		char str[textlen + 1];
-		memcpy(str, ((char*)d), textlen);
+		unsigned char str[textlen + 1];
+		memcpy(str, ((unsigned char*)d), textlen);
 		str[textlen] = '\0';
-		eDebug("[eMMI_UI] enq-text: %s",str);
-		mmiScreenEnq(slot_id, blind, alen, (char*)convertDVBUTF8(str).c_str());
+		std::string converted_str = convertDVBUTF8(str, textlen, -1, 1, 0);
+		eDebug("[eMMI_UI] enq-text: %s", converted_str.c_str());
+		mmiScreenEnq(slot_id, blind, alen, (char*)converted_str.c_str());
 		break;
 	}
 	case 0x09:		//Tmenu_last
@@ -110,13 +111,15 @@ int eMMI_UI::processMMIData(int slot_id, const unsigned char *tag, const void *d
 			eDebug("[eMMI_UI] %d bytes text", textlen);
 			if ((d+textlen) > max)
 				break;
-			char str[textlen + 1];
-			memcpy(str, ((char*)d), textlen);
+			unsigned char str[textlen + 1];
+			memcpy(str, ((unsigned char*)d), textlen);
 			str[textlen] = '\0';
-			mmiScreenAddText(slot_id, pos++, (char*)convertDVBUTF8(str).c_str());
-			eDebug("[eMMI_UI] %s", str);
+			std::string converted_str = convertDVBUTF8(str, textlen, -1, 1, 0);
+			mmiScreenAddText(slot_id, pos++, (char*)converted_str.c_str());
+			eDebug("[eMMI_UI] %s", converted_str.c_str());
 			d += textlen;
 		}
+
 		mmiScreenFinish(slot_id);
 		break;
 	}
@@ -134,11 +137,30 @@ int eMMI_UI::getState(int slot)
 	return 0;
 }
 
+int eMMI_UI::getDecodingState(int slot)
+{
+	if (slot < m_max_slots)
+		return slotdata[slot].decoding_state;
+	return 0;
+}
+
 void eMMI_UI::setState(int slot, int newState)
 {
 	if (slot < m_max_slots)
 	{
 		slotdata[slot].state = newState;
+		stateChanged(slot);
+	}
+}
+
+void eMMI_UI::setDecodingState(int slot, int newState)
+{
+	if (slot < m_max_slots)
+	{
+		if (slotdata[slot].decoding_state == 1 && newState == 2)
+			slotdata[slot].decoding_state = 2;
+		else if (newState != 2)
+			slotdata[slot].decoding_state = newState;
 		stateChanged(slot);
 	}
 }

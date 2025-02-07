@@ -6,7 +6,7 @@
 
 int eDVBCIResourceManagerSession::receivedAPDU(const unsigned char *tag,const void *data, int len)
 {
-	eTraceNoNewLineStart("[CI RM] SESSION(%d) %02x %02x %02x: ", session_nb, tag[0], tag[1], tag[2]);
+	eTraceNoNewLineStart("[CI%d RM] SESSION(%d) %02x %02x %02x: ", slot->getSlotID(), session_nb, tag[0], tag[1], tag[2]);
 	for (int i=0; i<len; i++)
 		eTraceNoNewLineStart("%02x ", ((const unsigned char*)data)[i]);
 	eTraceNoNewLineStart("\n");
@@ -15,12 +15,12 @@ int eDVBCIResourceManagerSession::receivedAPDU(const unsigned char *tag,const vo
 		switch (tag[2])
 		{
 		case 0x10:  // profile enquiry
-			eDebug("[CI RM] cam profile inquiry");
+			eDebug("[CI%d RM] cam profile inquiry", slot->getSlotID());
 			state=stateProfileEnquiry;
 			return 1;
 			break;
 		case 0x11: // Tprofile
-			eDebugNoNewLineStart("[CI RM] can do: ");
+			eDebugNoNewLineStart("[CI%d RM] can do: ", slot->getSlotID());
 			if (!len)
 				eDebugNoNewLine("nothing");
 			else
@@ -36,7 +36,7 @@ int eDVBCIResourceManagerSession::receivedAPDU(const unsigned char *tag,const vo
 			state=stateFinal;
 			break;
 		default:
-			eWarning("[CI RM] unknown APDU tag 9F 80 %02x", tag[2]);
+			eWarning("[CI%d RM] unknown APDU tag 9F 80 %02x", slot->getSlotID(), tag[2]);
 		}
 	}
 
@@ -63,7 +63,7 @@ int eDVBCIResourceManagerSession::doAction()
 	}
 	case stateProfileChange:
 	{
-		eWarning("[CI RM] cannot deal with statProfileChange");
+		eWarning("[CI%d RM] cannot deal with statProfileChange", slot->getSlotID());
 		break;
 	}
 	case stateProfileEnquiry:
@@ -84,11 +84,13 @@ int eDVBCIResourceManagerSession::doAction()
 				{0x00, 0x01, 0x00, 0x41}, // res mgr 1
 //				{0x00, 0x01, 0x00, 0x42}, // res mgr 2
 				{0x00, 0x02, 0x00, 0x41}, // app mgr 1
-//				{0x00, 0x02, 0x00, 0x42}, // app mgr 2
+				{0x00, 0x02, 0x00, 0x42}, // app mgr 2
 				{0x00, 0x02, 0x00, 0x43}, // app mgr 3
+				{0x00, 0x02, 0x00, 0x45}, // app mgr 5
 				{0x00, 0x03, 0x00, 0x41}, // ca mgr
 				{0x00, 0x20, 0x00, 0x41}, // host ctrl 1
 				{0x00, 0x20, 0x00, 0x42}, // host ctrl 2
+				{0x00, 0x20, 0x00, 0x43}, // host ctrl 3
 				{0x00, 0x24, 0x00, 0x41}, // datetime
 				{0x00, 0x40, 0x00, 0x41}, // mmi
 //				{0x00, 0x10, 0x00, 0x41},
@@ -96,23 +98,55 @@ int eDVBCIResourceManagerSession::doAction()
 				{0x00, 0x41, 0x00, 0x42}, // app mmi 2
 				{0x00, 0x8c, 0x10, 0x01}, // content ctrl 1
 				{0x00, 0x8c, 0x10, 0x02}, // content ctrl 2
+				{0x00, 0x8c, 0x10, 0x04}, // content ctrl 4
 				{0x00, 0x8d, 0x10, 0x01}, // Host lang ctrl
 				{0x00, 0x8e, 0x10, 0x01}, // Cam upgrade
-				{0x00, 0x8f, 0x10, 0x01}, // operator profile
+				{0x00, 0x8f, 0x10, 0x01}, // operator profile 1
+				{0x00, 0x8f, 0x10, 0x02}, // operator profile 2
 //				{0x00, 0x97, 0x10, 0x01},
 //				{0x00, 0x60, 0x60, 0x03},
 //				{0x00, 0x04, 0x10, 0x01},
 			};
+		const unsigned char data_v2_no_operator[][4]=
+			{
+				{0x00, 0x01, 0x00, 0x41}, // res mgr 1
+//				{0x00, 0x01, 0x00, 0x42}, // res mgr 2
+				{0x00, 0x02, 0x00, 0x41}, // app mgr 1
+				{0x00, 0x02, 0x00, 0x42}, // app mgr 2
+				{0x00, 0x02, 0x00, 0x43}, // app mgr 3
+				{0x00, 0x02, 0x00, 0x45}, // app mgr 5
+				{0x00, 0x03, 0x00, 0x41}, // ca mgr
+				{0x00, 0x20, 0x00, 0x41}, // host ctrl 1
+				{0x00, 0x20, 0x00, 0x42}, // host ctrl 2
+				{0x00, 0x20, 0x00, 0x43}, // host ctrl 3
+				{0x00, 0x24, 0x00, 0x41}, // datetime
+				{0x00, 0x40, 0x00, 0x41}, // mmi
+//				{0x00, 0x10, 0x00, 0x41},
+				{0x00, 0x41, 0x00, 0x41}, // app mmi 1
+				{0x00, 0x41, 0x00, 0x42}, // app mmi 2
+				{0x00, 0x8c, 0x10, 0x01}, // content ctrl 1
+				{0x00, 0x8c, 0x10, 0x02}, // content ctrl 2
+				{0x00, 0x8c, 0x10, 0x04}, // content ctrl 4
+				{0x00, 0x8d, 0x10, 0x01}, // Host lang ctrl
+				{0x00, 0x8e, 0x10, 0x01}, // Cam upgrade
+//				{0x00, 0x8f, 0x10, 0x01}, // operator profile 1
+//				{0x00, 0x8f, 0x10, 0x02}, // operator profile 2
+//				{0x00, 0x97, 0x10, 0x01},
+//				{0x00, 0x60, 0x60, 0x03},
+//				{0x00, 0x04, 0x10, 0x01},
+			};
+		
+		bool operator_profile_disabled = slot->getIsOperatorProfileDisabled();
 
 		bool ciplus = ciplus_cert_param_files_exists();
-		const void *p = ciplus ? data_v2 : data;
-		int len = ciplus ? sizeof(data_v2) : sizeof(data);
+		const void *p = ciplus ? (operator_profile_disabled ? data_v2_no_operator : data_v2) : data;
+		int len = ciplus ? (operator_profile_disabled ? sizeof(data_v2_no_operator) : sizeof(data_v2)) : sizeof(data);
 		sendAPDU(tag, p, len);
-		state=stateFinal;
+		state = stateFinal;
 		return 0;
 	}
 	case stateFinal:
-		eWarning("[CI RM] Should not happen: action on stateFinal");
+		eWarning("[CI%d RM] Should not happen: action on stateFinal", slot->getSlotID());
 	default:
 		break;
 	}

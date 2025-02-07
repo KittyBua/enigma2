@@ -94,14 +94,11 @@ def getPiconName(serviceRef):
 		fields[2] = '1'
 		pngname = findPicon('_'.join(fields))
 	if not pngname: # picon by channel name
-		name = sanitizeFilename(ServiceReference(serviceRef).getServiceName())
-		name = re.sub('[^a-z0-9]', '', name.replace('&', 'and').replace('+', 'plus').replace('*', 'star').lower())
-		if name:
-			pngname = findPicon(name)
-			if not pngname and len(name) > 2 and name.endswith('hd'):
-				pngname = findPicon(name[:-2])
-			if not pngname and len(name) > 6:
-				series = re.sub(r's[0-9]*e[0-9]*$', '', name)
+		if (sname := ServiceReference(serviceRef).getServiceName()) and "SID 0x" not in sname and (utf8_name := sanitizeFilename(sname).lower()) and utf8_name != "__":  # avoid lookups on zero length service names
+			legacy_name = re.sub("[^a-z0-9]", "", utf8_name.replace("&", "and").replace("+", "plus").replace("*", "star"))  # legacy ascii service name picons
+			pngname = findPicon(utf8_name) or legacy_name and findPicon(legacy_name) or findPicon(re.sub(r"(fhd|uhd|hd|sd|4k)$", "", utf8_name).strip()) or legacy_name and findPicon(re.sub(r"(fhd|uhd|hd|sd|4k)$", "", legacy_name).strip())
+			if not pngname and len(legacy_name) > 6:
+				series = re.sub(r"s[0-9]*e[0-9]*$", "", legacy_name)
 				pngname = findPicon(series)
 	return pngname
 
@@ -112,7 +109,7 @@ class Picon(Renderer):
 		self.usePicLoad = False
 		self.PicLoad = ePicLoad()
 		self.PicLoad.PictureData.get().append(self.updatePicon)
-		self.piconsize = (0,0)
+		self.piconsize = (0, 0)
 		self.pngname = ""
 		self.service_text = ""
 		self.lastPath = None

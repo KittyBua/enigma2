@@ -102,7 +102,7 @@ int eStaticServiceDVBInformation::isPlayable(const eServiceReference &ref, const
 		int system;
 		((const eServiceReferenceDVB&)ref).getChannelID(chid);
 		((const eServiceReferenceDVB&)ignore).getChannelID(chid_ignore);
-		return res_mgr->canAllocateChannel(chid, chid_ignore, system);
+		return res_mgr->canAllocateChannel(chid, chid_ignore, eDVBChannelID(), system);
 	}
 	return 0;
 }
@@ -247,7 +247,7 @@ int eStaticServiceDVBBouquetInformation::isPlayable(const eServiceReference &ref
 			};
 			int system;
 			((const eServiceReferenceDVB&)*it).getChannelID(chid);
-			int tmp = res->canAllocateChannel(chid, chid_ignore, system, simulate);
+			int tmp = res->canAllocateChannel(chid, chid_ignore, eDVBChannelID(), system, simulate);
 			if (prio_order == 127) // ignore dvb-type priority, try all alternatives one-by-one
 			{
 				if (((tmp > 0) || (!it->path.empty())))
@@ -382,6 +382,10 @@ RESULT eStaticServiceDVBPVRInformation::getName(const eServiceReference &ref, st
 		}
 		m_parser.m_name = name;
 	}
+
+	m_parser.m_name = name;
+	if (m_parser.m_prov.empty() && !ref.prov.empty()) m_parser.m_prov = ref.prov;
+	
 	return 0;
 }
 
@@ -989,21 +993,32 @@ RESULT eServiceFactoryDVB::offlineOperations(const eServiceReference &ref, ePtr<
 
 RESULT eServiceFactoryDVB::lookupService(ePtr<eDVBService> &service, const eServiceReference &ref)
 {
-	if (!ref.path.empty()) // playback
+	eServiceReferenceDVB sRelayOrigSref;
+	bool res = ((const eServiceReferenceDVB&)ref).getSROriginal(sRelayOrigSref);
+	if (!ref.path.empty() && !res) // playback
 	{
 		eDVBMetaParser parser;
 		int ret=parser.parseFile(ref.path);
 		service = new eDVBService;
+		std::string sref = ref.toString();
+		if (sref.find("%3a//") != std::string::npos && ret) {
+			service->setServiceRef(ref.toString());
+			eDVBDB::getInstance()->parseServiceData(service, "");
+		}
 		if (!ret)
 			eDVBDB::getInstance()->parseServiceData(service, parser.m_service_data);
 	}
+	else if (res)
+	{
+		int err;
+		if ((err = eDVBDB::getInstance()->getService(sRelayOrigSref, service)) != 0)
+		{
+			eTrace("[eServiceFactoryDVB] lookupService SR original service failed!");
+			return err;
+		}
+	}
 	else
 	{
-			// TODO: handle the listing itself
-		// if (ref.... == -1) .. return "... bouquets ...";
-		// could be also done in another serviceFactory (with seperate ID) to seperate actual services and lists
-			// TODO: cache
-
 		/* we are sure to have a ..DVB reference as the info() call was forwarded here according to it's ID. */
 		int err;
 		if ((err = eDVBDB::getInstance()->getService((eServiceReferenceDVB&)ref, service)) != 0)
@@ -1466,10 +1481,12 @@ RESULT eDVBServicePlay::connectEvent(const sigc::slot<void(iPlayableService*,int
 
 RESULT eDVBServicePlay::pause(ePtr<iPauseableService> &ptr)
 {
+	eServiceReferenceDVB sRelayOrigSref;
+	bool isSRService = ((const eServiceReferenceDVB&)m_reference).getSROriginal(sRelayOrigSref);
 		/* note: we check for timeshift to be enabled,
-		   not neccessary active. if you pause when timeshift
-		   is not active, you should activate it when unpausing */
-	if ((!m_is_pvr) && (!m_timeshift_enabled))
+			not neccessary active. if you pause when timeshift
+			is not active, you should activate it when unpausing */
+	if ((!m_is_pvr) && (!m_timeshift_enabled) && (m_reference.path.empty() || isSRService))
 	{
 		ptr = nullptr;
 		return -1;
@@ -1564,7 +1581,9 @@ RESULT eDVBServicePlay::setFastForward_internal(int ratio, bool final_seek)
 
 RESULT eDVBServicePlay::seek(ePtr<iSeekableService> &ptr)
 {
-	if (m_is_pvr || m_timeshift_enabled)
+	eServiceReferenceDVB sRelayOrigSref;
+	bool isSRService = ((const eServiceReferenceDVB&)m_reference).getSROriginal(sRelayOrigSref);
+	if (m_is_pvr || m_timeshift_enabled || (!m_reference.path.empty() && !isSRService))
 	{
 		ptr = this;
 		return 0;
@@ -2034,8 +2053,20 @@ std::string eDVBServicePlay::getInfoString(int w)
 	switch (w)
 	{
 	case sProvider:
+	{
 		if (!m_dvb_service) return "";
-		return m_dvb_service->m_provider_name;
+		std::string prov = m_dvb_service->m_provider_name;
+		if (prov.empty()) {
+			eServiceReferenceDVB sRelayOrigSref;
+			bool res = ((const eServiceReferenceDVB&)m_reference).getSROriginal(sRelayOrigSref);
+			if (res) {
+				ePtr<eDVBService> sRelayServiceOrigSref;
+				eDVBDB::getInstance()->getService(sRelayOrigSref, sRelayServiceOrigSref);
+				return sRelayServiceOrigSref->m_provider_name;
+			}
+		}
+		return prov;
+	}
 	case sServiceref:
 		return m_reference.toString();
 	case sHBBTVUrl:
@@ -2060,6 +2091,11 @@ std::string eDVBServicePlay::getInfoString(int w)
 
 ePtr<iDVBTransponderData> eDVBServicePlay::getTransponderData()
 {
+	eServiceReferenceDVB orig;
+	bool res = ((const eServiceReferenceDVB&)m_reference).getSROriginal(orig);
+	if (res) {
+		return eStaticServiceDVBInformation().getTransponderData(orig);
+	}
 	return eStaticServiceDVBInformation().getTransponderData(m_reference);
 }
 
@@ -2236,10 +2272,10 @@ int eDVBServicePlay::selectAudioStream(int i)
 				a.) we have an entry in the service db for the current service,
 				b.) we are not playing back something,
 				c.) we are not selecting the default entry. (we wouldn't change
-				    anything in the best case, or destroy the default setting in
-				    case the real default is not yet available.)
+					anything in the best case, or destroy the default setting in
+					case the real default is not yet available.)
 				d.) we have only one audiostream (overwrite the cache to make sure
-				    the cache contains the correct audio pid and type)
+					the cache contains the correct audio pid and type)
 			*/
 	if (m_dvb_service && ((i != -1) || (program.audioStreams.size() == 1)
 		|| ((m_dvb_service->getCacheEntry(eDVBService::cMPEGAPID) == -1)
@@ -2376,7 +2412,8 @@ bool eDVBServiceBase::tryFallbackTuner(eServiceReferenceDVB &service, bool &is_s
 		return false;
 	service.getChannelID(chid); 						// this sets chid
 	eServiceReferenceDVB().getChannelID(chid_ignore);	// this sets chid_ignore
-	if(res_mgr->canAllocateChannel(chid, chid_ignore, system))	// this sets system
+
+	if(res_mgr->canAllocateChannel(chid, chid_ignore, eDVBChannelID(), system))	// this sets system
 		return false;
 
 	if (eConfigManager::getConfigBoolValue("config.usage.remote_fallback_alternative", false) && !(system == iDVBFrontend::feSatellite))
@@ -2617,13 +2654,13 @@ int eDVBServicePlay::isTimeshiftActive()
 
 int eDVBServicePlay::isTimeshiftEnabled()
 {
-        return m_timeshift_enabled;
+	return m_timeshift_enabled;
 }
 
 RESULT eDVBServicePlay::saveTimeshiftFile()
 {
 	if (!m_timeshift_enabled)
-                return -1;
+		return -1;
 
 	m_save_timeshift = 1;
 
@@ -3303,8 +3340,9 @@ RESULT eDVBServicePlay::enableSubtitles(iSubtitleUser *user, SubtitleTrack &trac
 
 		m_subtitle_widget = user;
 		m_subtitle_parser->start(pid, composition_page_id, ancillary_page_id);
-		if (m_dvb_service)
+		if (m_dvb_service){
 			m_dvb_service->setCacheEntry(eDVBService::cSUBTITLE, ((pid&0xFFFF)<<16)|((composition_page_id&0xFF)<<8)|(ancillary_page_id&0xFF));
+		}
 	}
 	else
 		goto error_out;
@@ -3330,8 +3368,9 @@ RESULT eDVBServicePlay::disableSubtitles()
 		m_teletext_parser->setPageAndMagazine(-1, -1, "und");
 		m_subtitle_pages.clear();
 	}
-	if (m_dvb_service)
+	if (m_dvb_service){
 		m_dvb_service->setCacheEntry(eDVBService::cSUBTITLE, 0);
+	}
 	return 0;
 }
 

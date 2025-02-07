@@ -3,6 +3,7 @@ import os
 import time
 import re
 from Tools.HardwareInfo import HardwareInfo
+from Components.SystemInfo import BoxInfo
 from sys import maxsize, modules, version_info
 
 
@@ -28,14 +29,11 @@ def getFlashDateString():
 	return _("unknown")
 
 
+def returndate(date):
+    return "%s-%s-%s" % (date[:4], date[4:6], date[6:8])
+
 def getBuildDateString():
-	try:
-		if os.path.isfile('/etc/version'):
-			version = open("/etc/version", "r").read()
-			return "%s-%s-%s" % (version[:4], version[4:6], version[6:8])
-	except:
-		pass
-	return _("unknown")
+	return returndate(BoxInfo.getItem("compiledate"))
 
 
 def getUpdateDateString():
@@ -43,7 +41,7 @@ def getUpdateDateString():
 		from glob import glob
 		build = [x.split("-")[-2:-1][0][-8:] for x in open(glob("/var/lib/opkg/info/openpli-bootlogo.control")[0], "r") if x.startswith("Version:")][0]
 		if build.isdigit():
-			return "%s-%s-%s" % (build[:4], build[4:6], build[6:])
+			return returndate(build)
 	except:
 		pass
 	return _("unknown")
@@ -57,11 +55,17 @@ def getEnigmaVersionString():
 	return enigma_version
 
 
+#maybe in future it is better to swig the branch string - for now I retrieve it from the VersionString
+def getEnigmaBranchString():
+	import enigma
+	return enigma.getEnigmaVersionString()[11:]
+
+
 def getGStreamerVersionString():
 	try:
 		from glob import glob
 		gst = [x.split("Version: ") for x in open(glob("/var/lib/opkg/info/gstreamer[0-9].[0-9].control")[0], "r") if x.startswith("Version:")][0]
-		return "%s" % gst[1].split("+")[0].replace("\n", "")
+		return "%s" % gst[1].split("+")[0].split("-")[0].replace("\n", "")
 	except:
 		return ""
 
@@ -76,10 +80,7 @@ def getffmpegVersionString():
 
 
 def getKernelVersionString():
-	try:
-		return open("/proc/version", "r").read().split(' ', 4)[2].split('-', 2)[0]
-	except:
-		return _("unknown")
+	return BoxInfo.getItem("kernel")
 
 
 def getHardwareTypeString():
@@ -87,11 +88,13 @@ def getHardwareTypeString():
 
 
 def getImageTypeString():
-	try:
-		image_type = open("/etc/issue").readlines()[-2].strip()[:-6]
-		return image_type.capitalize().replace("develop", "Nightly Build")
-	except:
-		return _("undefined")
+	if BoxInfo.getItem("imagetype") != "rev":
+		return "%s %s %s" % (BoxInfo.getItem("displaydistro"), BoxInfo.getItem("imagetype").title(), BoxInfo.getItem("imageversion"))
+	return "%s %s" % (BoxInfo.getItem("displaydistro"), BoxInfo.getItem("imageversion").title())
+
+
+def getOEVersionString():
+	return BoxInfo.getItem("oe").title()
 
 
 def getCPUInfoString():
@@ -113,11 +116,11 @@ def getCPUInfoString():
 
 		if not cpu_speed:
 			try:
-				cpu_speed = int(open("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq").read()) / 1000
+				cpu_speed = int(open("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq").read()) // 1000
 			except:
 				try:
 					import binascii
-					cpu_speed = int(int(binascii.hexlify(open('/sys/firmware/devicetree/base/cpus/cpu@0/clock-frequency', 'rb').read()), 16) / 100000000) * 100
+					cpu_speed = int(int(binascii.hexlify(open('/sys/firmware/devicetree/base/cpus/cpu@0/clock-frequency', 'rb').read()), 16) // 100000000) * 100
 				except:
 					cpu_speed = "-"
 
@@ -131,7 +134,7 @@ def getCPUInfoString():
 			temperature = open("/proc/stb/fp/temp_sensor").readline().replace('\n', '')
 		elif os.path.isfile("/sys/devices/virtual/thermal/thermal_zone0/temp"):
 			try:
-				temperature = int(open("/sys/devices/virtual/thermal/thermal_zone0/temp").read().strip()) / 1000
+				temperature = int(open("/sys/devices/virtual/thermal/thermal_zone0/temp").read().strip()) // 1000
 			except:
 				pass
 		elif os.path.isfile("/proc/hisi/msp/pm_cpu"):
@@ -150,8 +153,10 @@ def getDriverInstalledDate():
 	try:
 		from glob import glob
 		try:
-			driver = [x.split("-")[-2:-1][0][-8:] for x in open(glob("/var/lib/opkg/info/*-dvb-modules-*.control")[0], "r") if x.startswith("Version:")][0]
-			return "%s-%s-%s" % (driver[:4], driver[4:6], driver[6:])
+			driver = [x.split("-") for x in open(glob("/var/lib/opkg/info/*-dvb-modules-*.control")[0], "r") if x.startswith("Version:")][0]
+			if len(driver) == 2:
+				driver = driver[0].split('+')
+			return "%s-%s-%s" % (driver[1][:4], driver[1][4:6], driver[1][6:])
 		except:
 			try:
 				driver = [x.split("Version:") for x in open(glob("/var/lib/opkg/info/*-dvb-proxy-*.control")[0], "r") if x.startswith("Version:")][0]

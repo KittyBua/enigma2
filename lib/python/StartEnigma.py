@@ -30,12 +30,13 @@ from Screens.SimpleSummary import SimpleSummary
 from sys import stdout
 
 profile("Bouquets")
-from Components.config import config, configfile, ConfigText, ConfigYesNo, ConfigInteger, NoSave
-config.misc.load_unlinked_userbouquets = ConfigYesNo(default=True)
-
+from Components.config import config, configfile, ConfigText, ConfigYesNo, ConfigInteger, ConfigSelection, NoSave
+config.misc.load_unlinked_userbouquets = ConfigSelection(default="1", choices=[("0", _("Off")), ("1", _("Top")), ("2", _("Bottom"))])
+if config.misc.load_unlinked_userbouquets.value.lower() in ("true", "false"):
+	config.misc.load_unlinked_userbouquets.value = "1" if config.misc.load_unlinked_userbouquets.value.lower() == "true" else "0"
 
 def setLoadUnlinkedUserbouquets(configElement):
-	enigma.eDVBDB.getInstance().setLoadUnlinkedUserbouquets(configElement.value)
+	enigma.eDVBDB.getInstance().setLoadUnlinkedUserbouquets(int(configElement.value))
 
 
 config.misc.load_unlinked_userbouquets.addNotifier(setLoadUnlinkedUserbouquets)
@@ -58,7 +59,6 @@ InitFallbackFiles()
 profile("config.misc")
 config.misc.radiopic = ConfigText(default=resolveFilename(SCOPE_CURRENT_SKIN, "radio.mvi"))
 config.misc.blackradiopic = ConfigText(default=resolveFilename(SCOPE_CURRENT_SKIN, "black.mvi"))
-config.misc.useTransponderTime = ConfigYesNo(default=True)
 config.misc.startCounter = ConfigInteger(default=0) # number of e2 starts...
 config.misc.standbyCounter = NoSave(ConfigInteger(default=0)) # number of standby
 config.misc.DeepStandby = NoSave(ConfigYesNo(default=False)) # detect deepstandby
@@ -87,12 +87,6 @@ def setEPGCachePath(configElement):
 #config.misc.standbyCounter.addNotifier(standbyCountChanged, initial_call = False)
 ####################################################
 
-
-def useTransponderTimeChanged(configElement):
-	enigma.eDVBLocalTimeHandler.getInstance().setUseDVBTime(configElement.value)
-
-
-config.misc.useTransponderTime.addNotifier(useTransponderTimeChanged)
 
 profile("Twisted")
 try:
@@ -396,11 +390,11 @@ class PowerKey:
 				from Screens.Menu import MainMenu, mdom
 				root = mdom.getroot()
 				for x in root.findall("menu"):
-					y = x.find("id")
-					if y is not None:
-						id = y.get("val")
-						if id and id == selected[1]:
-							self.session.open(MainMenu, x)
+					if x.get("key") == "shutdown":
+						self.session.infobar = self
+						menu_screen = self.session.open(MainMenu, x)
+						menu_screen.setTitle(_("Standby / restart"))
+						break
 
 	def standby(self):
 		if not Screens.Standby.inStandby and self.session.current_dialog and self.session.current_dialog.ALLOW_SUSPEND and self.session.in_exec:
@@ -467,7 +461,7 @@ def runScreenTest():
 
 	screensToRun.append((100, InfoBar.InfoBar))
 
-	screensToRun.sort()
+	screensToRun.sort(key=lambda x: x[0])
 
 	enigma.ePythonConfigQuery.setQueryFunc(configfile.getResolvedKey)
 
@@ -525,9 +519,8 @@ def runScreenTest():
 			wptime = nowTime + 30  # so switch back on in 30 seconds
 		else:
 			wptime = startTime[0] - 240
-		if not config.misc.useTransponderTime.value:
-			print("[StartEnigma] DVB time sync disabled... so set RTC now to current linux time!", strftime("%Y/%m/%d %H:%M", localtime(nowTime)))
-			setRTCtime(nowTime)
+		print("[StartEnigma] so set RTC now to current linux time!", strftime("%Y/%m/%d %H:%M", localtime(nowTime)))
+		setRTCtime(nowTime)
 		print("[StartEnigma] Set wakeup time to", strftime("%Y/%m/%d %H:%M", localtime(wptime)))
 		setFPWakeuptime(wptime)
 		config.misc.prev_wakeup_time.value = int(startTime[0])
@@ -544,8 +537,6 @@ def runScreenTest():
 
 	profile("configfile.save")
 	configfile.save()
-	from Screens import InfoBarGenerics
-	InfoBarGenerics.saveResumePoints()
 
 	return 0
 

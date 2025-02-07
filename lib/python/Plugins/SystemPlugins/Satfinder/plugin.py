@@ -9,7 +9,6 @@ from Components.Sources.FrontendStatus import FrontendStatus
 from Components.ActionMap import ActionMap
 from Components.NimManager import nimmanager, getConfigSatlist
 from Components.config import config, ConfigSelection
-from Components.SystemInfo import SystemInfo
 from Components.TuneTest import Tuner
 from Tools.Transponder import getChannelNumber, channel2frequency
 from Tools.BoundFunction import boundFunction
@@ -45,13 +44,13 @@ class Satfinder(ScanSetup):
 		self.timer.callback.append(self.updateFrontendStatus)
 
 		ScanSetup.__init__(self, session)
+		self.skinName = ["Satfinder"]
 		self.setTitle(_("Signal finder"))
 		self["Frontend"] = FrontendStatus(frontend_source=lambda: self.frontend, update_interval=100)
 
-		self["actions"] = ActionMap(["SetupActions", "ColorActions"],
+		self["actions"] = ActionMap(["SetupActions"],
 		{
 			"save": self.keyGoScan,
-			"ok": self.keyGoScan,
 			"cancel": self.keyCancel,
 		}, -3)
 
@@ -493,7 +492,7 @@ class Satfinder(ScanSetup):
 	def keyGoScan(self):
 		self.frontend = None
 		if self.raw_channel:
-			del(self.raw_channel)
+			del (self.raw_channel)
 		tlist = []
 		if self.DVB_type.value == "DVB-S":
 			self.addSatTransponder(tlist,

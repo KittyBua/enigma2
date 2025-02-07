@@ -4,7 +4,7 @@ import Screens.InfoBar
 from Components.config import config, ConfigClock
 from Components.Pixmap import Pixmap
 from Components.Label import Label
-from Components.EpgList import EPGList, EPG_TYPE_SINGLE, EPG_TYPE_SIMILAR, EPG_TYPE_MULTI
+from Components.EpgList import EPGList, EPG_TYPE_SINGLE, EPG_TYPE_SIMILAR, EPG_TYPE_MULTI, EPG_TYPE_PARTIAL
 from Components.ActionMap import ActionMap
 from Components.UsageConfig import preferredTimerPath
 from Components.Sources.ServiceEvent import ServiceEvent
@@ -40,6 +40,8 @@ class EPGSelection(Screen):
 		self.serviceChangeCB = serviceChangeCB
 		self.ask_time = -1 #now
 		self["key_red"] = StaticText("")
+		self["key_menu"] = StaticText(_("MENU"))
+		self["key_info"] = StaticText(_("INFO"))
 		self.closeRecursive = False
 		self.saved_title = None
 		self["Service"] = ServiceEvent()
@@ -47,9 +49,16 @@ class EPGSelection(Screen):
 		if isinstance(service, str) and eventid is not None:
 			self.type = EPG_TYPE_SIMILAR
 			self.setTitle(_("Similar EPG"))
+			self["key_yellow"] = StaticText(_("Partial"))
+			self["key_blue"] = StaticText()
+			self.currentService = service
+			self.eventid = eventid
+			self.zapFunc = None
+		elif not service and isinstance(eventid, str):
+			self.type = EPG_TYPE_PARTIAL
+			self.title = _("Partial EPG")
 			self["key_yellow"] = StaticText()
 			self["key_blue"] = StaticText()
-			self["key_red"] = StaticText()
 			self.currentService = service
 			self.eventid = eventid
 			self.zapFunc = None
@@ -111,22 +120,26 @@ class EPGSelection(Screen):
 
 	def nextBouquet(self):
 		if self.type == EPG_TYPE_SINGLE:
+			self.resetSortStatus()
 			self.session.openWithCallback(self.channelSelectionCallback, ChannelSelection.SimpleChannelSelection, _("Select channel"), True, True, self.currentService.ref, self.parent and self.parent.epg_bouquet)
 		if self.bouquetChangeCB:
 			self.bouquetChangeCB(1, self)
 
 	def prevBouquet(self):
 		if self.type == EPG_TYPE_SINGLE:
+			self.resetSortStatus()
 			self.session.openWithCallback(self.channelSelectionCallback, ChannelSelection.SimpleChannelSelection, _("Select channel"), True, True, self.currentService.ref, self.parent and self.parent.epg_bouquet)
 		if self.bouquetChangeCB:
 			self.bouquetChangeCB(-1, self)
 
 	def nextService(self):
 		if self.serviceChangeCB:
+			self.resetSortStatus()
 			self.serviceChangeCB(1, self)
 
 	def prevService(self):
 		if self.serviceChangeCB:
+			self.resetSortStatus()
 			self.serviceChangeCB(-1, self)
 
 	def enterDateTime(self):
@@ -198,20 +211,22 @@ class EPGSelection(Screen):
 
 	#just used in multipeg
 	def onCreate(self):
-		l = self["list"]
-		l.recalcEntrySize()
+		li = self["list"]
+		li.recalcEntrySize()
 		if self.type == EPG_TYPE_MULTI:
-			l.fillMultiEPG(self.services, self.ask_time)
-			l.moveToService(Screens.InfoBar.InfoBar.instance and Screens.InfoBar.InfoBar.instance.servicelist.getCurrentSelection() or self.session.nav.getCurrentlyPlayingServiceOrGroup())
+			li.fillMultiEPG(self.services, self.ask_time)
+			li.moveToService(Screens.InfoBar.InfoBar.instance and Screens.InfoBar.InfoBar.instance.servicelist.getCurrentSelection() or self.session.nav.getCurrentlyPlayingServiceOrGroup())
 		elif self.type == EPG_TYPE_SINGLE:
 			service = self.currentService
 			self["Service"].newService(service.ref)
 			if not self.saved_title:
 				self.saved_title = self.instance.getTitle()
 			self.setTitle(self.saved_title + ' - ' + service.getServiceName())
-			l.fillSingleEPG(service)
+			li.fillSingleEPG(service)
+		elif self.type == EPG_TYPE_PARTIAL:
+			li.fill_partial_list(self.eventid)
 		else:
-			l.fillSimilarList(self.currentService, self.eventid)
+			li.fillSimilarList(self.currentService, self.eventid)
 
 	def eventViewCallback(self, setEvent, setService, val):
 		l = self["list"]
@@ -271,6 +286,12 @@ class EPGSelection(Screen):
 				self.sort_type = 0
 			self["list"].sortSingleEPG(self.sort_type)
 			self.setSortDescription()
+		elif self.type == EPG_TYPE_SIMILAR:
+			cur = self["list"].getCurrent()
+			cur_event = cur and cur[0]
+			event = cur_event and cur_event.getEventName()
+			if event:
+				self.session.open(EPGSelection, None, None, event)
 
 	def setSortDescription(self):
 		if self.sort_type == 1:
@@ -279,6 +300,10 @@ class EPGSelection(Screen):
 		else:
 			# TRANSLATORS: This must fit into the header button in the EPG-List
 			self["key_yellow"].setText(_("Sort A-Z"))
+
+	def resetSortStatus(self):
+		self.sort_type = 0
+		self.setSortDescription()
 
 	def blueButtonPressed(self):
 		if self.type == EPG_TYPE_MULTI:
@@ -404,7 +429,7 @@ class EPGSelection(Screen):
 			newEntry = RecordTimerEntry(serviceref, checkOldTimers=True, dirname=preferredTimerPath(), *parseEvent(event))
 			newEntry.justplay = config.recording.timer_default_type.value == "zap"
 			newEntry.always_zap = config.recording.timer_default_type.value == "zap+record"
-			self.session.openWithCallback(self.finishedAdd, TimerEntry, newEntry)
+			self.session.openWithCallback(self.finishedAdd, TimerEntry, newEntry, newEntry=True)
 
 	def finishedEdit(self, answer):
 		if answer[0]:
@@ -574,8 +599,8 @@ class EPGSelection(Screen):
 				self.key_red_choice = self.EMPTY
 			return
 		elif self.key_red_choice != self.ZAP and self.zapFunc is not None:
-				self["key_red"].setText(_("Zap"))
-				self.key_red_choice = self.ZAP
+			self["key_red"].setText(_("Zap"))
+			self.key_red_choice = self.ZAP
 
 		if event is None:
 			if self.key_green_choice != self.EMPTY:

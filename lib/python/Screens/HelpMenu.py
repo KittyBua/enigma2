@@ -1,60 +1,167 @@
 from Screens.Screen import Screen
+from Screens.TextBox import TextBox
+from Tools.KeyBindings import keyBindings
+from Tools.BoundFunction import boundFunction
+from Components.config import config
 from Components.Label import Label
 from Components.ActionMap import ActionMap
 from Components.HelpMenuList import HelpMenuList
+from Components.Sources.StaticText import StaticText
 from Screens.Rc import Rc
+from enigma import eActionMap
+from sys import maxsize
 
 
 class HelpMenu(Screen, Rc):
+	def helpText(self):
+		return "\n\n".join([
+			_("Brief help information for buttons in your current context."),
+			_("Navigate up/down with UP/DOWN buttons and page up/down with LEFT/RIGHT. EXIT to return to the help screen. OK to perform the action described in the currently highlighted help."),
+			_("Other buttons will jump to the help for that button, if there is help."),
+			_("If an action is user-configurable, its help entry will be flagged (C)"),
+			_("A highlight on the remote control image shows which button the help refers to. If more than one button performs the indicated function, more than one highlight will be shown. Text below the list indicates whether the function is for a long press of the button(s)."),
+			_("The order and grouping of the help information list can be controlled using MENU>Setup>User Interface>Settings>Sort order for help screen or pressing long help")])
+
 	def __init__(self, session, list):
 		Screen.__init__(self, session)
-		self.setTitle(_("help..."))
-		self.onSelChanged = []
-		self["list"] = HelpMenuList(list, self.close)
-		self["list"].onSelChanged.append(self.SelectionChanged)
+		Screen.setTitle(self, _("Help"))
 		Rc.__init__(self)
-		self["long_key"] = Label("")
+		self["list"] = HelpMenuList(list, self.close, rcPos=self.getRcPositions())
+		self["longshift_key0"] = Label("")
+		self["longshift_key1"] = Label("")
+		self["key_help"] = StaticText(_("HELP"))
 
-		self["actions"] = ActionMap(["WizardActions"],
-		{
+		self["actions"] = ActionMap(["WizardActions"], {
 			"ok": self["list"].ok,
 			"back": self.close,
 		}, -1)
 
-		self.onLayoutFinish.append(self.SelectionChanged)
+		# Wildcard binding with slightly higher priority than
+		# the wildcard bindings in
+		# InfoBarGenerics.InfoBarUnhandledKey, but with a gap
+		# so that other wildcards can be interposed if needed.
+
+		self.onClose.append(self.doOnClose)
+		eActionMap.getInstance().bindAction('', maxsize - 100, self["list"].handleButton)
+
+		# Ignore keypress breaks for the keys in the
+		# ListboxActions context.
+
+		# Catch  ListboxActions on CH+/-, FF & REW and
+		# divert them to "jump to help for button" in the Help
+		# screen.  If CH+/-, FF & REW are to be allowed for list
+		# navigation, replace their key mappings with ones that
+		# simply have mapto="ignore" flags="b".
+
+		# If that's done, then the help text for the HelpMenu
+		# screen should be changed to indicate that those buttons
+		# are used for navigation.
+
+		intercepts = self.makeButtonIntercepts()
+
+		# Ignore other keypress breaks for keys in the
+		# ListboxActions context.
+
+		intercepts["ignore"] = lambda: 1
+
+		self["listboxFilterActions"] = ActionMap(["ListboxHelpMenuActions"], intercepts, prio=-1)
+
+		self["helpActions"] = ActionMap(["HelpActions"], {
+			"displayHelp": self.showHelp,
+			"toggleConfig": self.toggleConfig,
+		})
+
+		self.onLayoutFinish.append(self.doOnLayoutFinish)
+
+	def doOnLayoutFinish(self):
+		self["list"].onSelectionChanged.append(self.SelectionChanged)
+		self.SelectionChanged()
+
+	def doOnClose(self):
+		eActionMap.getInstance().unbindAction('', self["list"].handleButton)
+		self["list"].onSelectionChanged.remove(self.SelectionChanged)
 
 	def SelectionChanged(self):
 		self.clearSelectedKeys()
 		selection = self["list"].getCurrent()
+
+		longText = [""] * 2
+		longButtons = []
+		shiftButtons = []
 		if selection:
-			selection = selection[3]
-		#arrow = self["arrowup"]
-		print("selection:", selection)
+			for button in selection[3]:
+				if len(button) > 1 and button[1] in ("SHIFT", "long"):
+					label = self.getRcPositions().getRcKeyLabel(button[0])
+					if label is None:
+						label = _("Label not defined")
+					else:
+						label = _(label)
+					if button[1] == "SHIFT":
+						self.selectKey("SHIFT")
+						shiftButtons.append(label)
+					elif button[1] == "long":
+						longText[0] = _("Long key press")
+						longButtons.append(label)
+				self.selectKey(button[0])
 
-		longText = ""
-		if selection and len(selection) > 1:
-			if selection[1] == "SHIFT":
-				self.selectKey("SHIFT")
-			elif selection[1] == "long":
-				longText = _("Long key press")
-		self["long_key"].setText(longText)
+			textline = 0
+			if len(selection[3]) > 1:
+				if longButtons:
+					longText[textline] = _("Long press: ") + ', '.join(longButtons)
+					textline += 1
+				if shiftButtons:
+					longText[textline] = _("SHIFT: ") + ', '.join(shiftButtons)
 
-		self.selectKey(selection[0])
-		#if selection is None:
-		print("select arrow")
-		#	arrow.moveTo(selection[1], selection[2], 1)
-		#	arrow.startMoving()
-		#	arrow.show()
+		self["longshift_key0"].setText(longText[0])
+		self["longshift_key1"].setText(longText[1])
+
+	def makeButtonIntercepts(self):
+		intercepts = {}
+		for k, v in ((_k, _v) for _k, _v in keyBindings.items() if _k[0] == "ListboxHelpMenuActions" and _k[1] != "ignore"):
+			for b in (_b for _b in v if not _b[0] & 0x8000):
+				for f in (_f for _f in range(4) if 1 << _f & b[2]):
+					intercepts[k[1]] = boundFunction(self.interceptButton, b[0], f)
+		return intercepts
+
+	def interceptButton(self, key, flag):
+		from Screens.InfoBar import InfoBar
+		res = self["list"].handleButton(key, flag)
+
+		# The normal UnhandledKey procedure can't be used here
+		# because we can't return 0 here, because that would fall
+		# through to the native bindings, so call
+		# InfoBar.instance.actionB() directly to indicate that the
+		# button has no action on this flag.
+
+		if not res and res is not None and InfoBar.instance:
+			InfoBar.instance.actionB(key, flag)
+
+		# Always return 1 to stop fallthrough to native bindings
+		return 1
+
+	def showHelp(self):
+		self.session.open(TextBox, self.helpText(), _("Help Screen"))
+
+	def toggleConfig(self):
+		config.usage.help_sortorder.selectNext()
+		config.usage.help_sortorder.save()
+		Screen.setTitle(self, "%s - %s" % (_("Help"), config.usage.help_sortorder.getText()))
+		self["list"].createHelpList()
 
 
 class HelpableScreen:
 	def __init__(self):
-		self["helpActions"] = ActionMap(["HelpActions"],
-			{
-				"displayHelp": self.showHelp,
-			})
+		self["helpActions"] = ActionMap(["HelpActions"], {
+			"displayHelp": self.showHelp,
+		})
+		self["key_help"] = StaticText(_("HELP"))
 
 	def showHelp(self):
+		try:
+			if self.secondInfoBarScreen and self.secondInfoBarScreen.shown:
+				self.secondInfoBarScreen.hide()
+		except:
+			pass
 		self.session.openWithCallback(self.callHelpAction, HelpMenu, self.helpList)
 
 	def callHelpAction(self, *args):
