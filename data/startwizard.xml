@@ -81,6 +81,20 @@ self.selectKey("RED")
 self.selectKey("OK")
 			</code>
 		</step>
+		<step id="password">
+			<text value="Please setup a password"/>
+			<config screen="ChangePasswordScreen" module="ChangePassword" type="ConfigList"/>
+			<code>
+self.clearSelectedKeys()
+self.selectKey("UP")
+self.selectKey("DOWN")
+self.selectKey("LEFT")
+self.selectKey("RIGHT")
+self.selectKey("BLUE")
+self.selectKey("RED")
+self.selectKey("OK")
+			</code>
+		</step>
 		<step id="nima">
 			<condition>
 from Components.NimManager import nimmanager

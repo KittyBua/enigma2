@@ -71,7 +71,7 @@
 					<item key="RecordPaths" level="2" text="Recording paths"><screen module="RecordPaths" screen="RecordPathsSettings"/></item>
 					<item key="hotkey_setup" level="1" text="Hotkey"><screen module="Hotkey" screen="HotkeySetup"/></item>
 				</menu>
-				<item key="change_password" level="0" text="Change Password"><screen module="ChangePassword" screen="ChangePaswordScreen"/></item>
+				<item key="change_password" level="0" text="Change Password"><screen module="ChangePassword" screen="ChangePasswordScreen"/></item>
 			</menu>
 			<menu key="cam" weight="10" text="SoftCam / CI">
 				<item key="softcam_setup" weight="10" level="0" text="Softcam Setup"><screen module="SoftcamSetup" screen="SoftcamSetup"/></item>

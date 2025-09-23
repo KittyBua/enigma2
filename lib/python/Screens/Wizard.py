@@ -235,13 +235,6 @@ class Wizard(Screen):
 			"0": self.keyNumberGlobal
 		}, -1)
 
-		self["VirtualKB"] = NumberActionMap(["VirtualKeyboardActions"],
-		{
-			"showVirtualKeyboard": self.KeyText,
-		}, -2)
-
-		self["VirtualKB"].setEnabled(False)
-
 	def red(self):
 		print("red")
 		self.back()
@@ -286,7 +279,7 @@ class Wizard(Screen):
 			self.currStep = self.stepHistory[-2]
 			self.stepHistory = self.stepHistory[:-2]
 		else:
-			self.session.openWithCallback(self.exitWizardQuestion, MessageBox, (_("Are you sure you want to exit this wizard?")))
+			self.session.openWithCallback(self.exitWizardQuestion, MessageBox, (_("Are you sure you want to exit this wizard?")), simple=True)
 		if self.currStep < 1:
 			self.currStep = 1
 		print("currStep:", self.currStep)
@@ -422,7 +415,6 @@ class Wizard(Screen):
 		self.resetCounter()
 		if self.showConfig and self.wizard[self.currStep]["config"]["screen"] is not None or self.wizard[self.currStep]["config"]["type"] == "dynamic":
 			self["config"].instance.moveSelection(self["config"].instance.moveUp)
-			self.handleInputHelpers()
 		elif self.showList and len(self.wizard[self.currStep]["evaluatedlist"]) > 0:
 			self["list"].selectPrevious()
 			if "onselect" in self.wizard[self.currStep]:
@@ -436,7 +428,6 @@ class Wizard(Screen):
 		self.resetCounter()
 		if self.showConfig and self.wizard[self.currStep]["config"]["screen"] is not None or self.wizard[self.currStep]["config"]["type"] == "dynamic":
 			self["config"].instance.moveSelection(self["config"].instance.moveDown)
-			self.handleInputHelpers()
 		elif self.showList and len(self.wizard[self.currStep]["evaluatedlist"]) > 0:
 			#self["list"].instance.moveSelection(self["list"].instance.moveDown)
 			self["list"].selectNext()
@@ -622,7 +613,6 @@ class Wizard(Screen):
 						self["config"].setCurrentIndex(0)
 				else:
 					self["config"].l.setList([])
-					self.handleInputHelpers()
 			else:
 				if "config" in self:
 					self["config"].hide()
@@ -639,39 +629,8 @@ class Wizard(Screen):
 					self.finished(gotoStep=self.wizard[self.currStep]["timeoutstep"])
 		self.updateText()
 
-	def handleInputHelpers(self):
-		if self["config"].getCurrent() is not None:
-			if isinstance(self["config"].getCurrent()[1], ConfigText) or isinstance(self["config"].getCurrent()[1], ConfigPassword):
-				if "VKeyIcon" in self:
-					self["VirtualKB"].setEnabled(True)
-					self["VKeyIcon"].boolean = True
-				if "HelpWindow" in self:
-					if self["config"].getCurrent()[1].help_window.instance is not None:
-						helpwindowpos = self["HelpWindow"].getPosition()
-						from enigma import ePoint
-						self["config"].getCurrent()[1].help_window.instance.move(ePoint(helpwindowpos[0], helpwindowpos[1]))
-			else:
-				if "VKeyIcon" in self:
-					self["VirtualKB"].setEnabled(False)
-					self["VKeyIcon"].boolean = False
-		else:
-			if "VKeyIcon" in self:
-				self["VirtualKB"].setEnabled(False)
-				self["VKeyIcon"].boolean = False
-
-	def KeyText(self):
-		from Screens.VirtualKeyBoard import VirtualKeyBoard
-		self.currentConfigIndex = self["config"].getCurrentIndex()
-		self.session.openWithCallback(self.ChangeConfigValueCallback, VirtualKeyBoard, title=self["config"].getCurrent()[0], text=self["config"].getCurrent()[1].getValue())
-
 	def ChangeConfigValueCallback(self, callback=None):
 		if callback is not None and len(callback):
-			if isinstance(self["config"].getCurrent()[1], ConfigText) or isinstance(self["config"].getCurrent()[1], ConfigPassword):
-				if "HelpWindow" in self:
-					if self["config"].getCurrent()[1].help_window.instance is not None:
-						helpwindowpos = self["HelpWindow"].getPosition()
-						from enigma import ePoint
-						self["config"].getCurrent()[1].help_window.instance.move(ePoint(helpwindowpos[0], helpwindowpos[1]))
 			self["config"].instance.moveSelectionTo(self.currentConfigIndex)
 			self["config"].setCurrentIndex(self.currentConfigIndex)
 			if isinstance(self["config"].getCurrent()[1], ConfigSelection):

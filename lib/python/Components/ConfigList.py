@@ -2,7 +2,7 @@ from enigma import eListbox, eListboxPythonConfigContent, ePoint, eRCInput, eTim
 from skin import parameters, applySkinFactor, parseColor
 
 from Components.ActionMap import HelpableActionMap, HelpableNumberActionMap
-from Components.config import ConfigBoolean, ConfigElement, ConfigInteger, ConfigMacText, ConfigNothing, ConfigNumber, ConfigSelection, ConfigSequence, ConfigText, ACTIONKEY_0, ACTIONKEY_ASCII, ACTIONKEY_BACKSPACE, ACTIONKEY_DELETE, ACTIONKEY_ERASE, ACTIONKEY_FIRST, ACTIONKEY_LAST, ACTIONKEY_LEFT, ACTIONKEY_NUMBERS, ACTIONKEY_RIGHT, ACTIONKEY_SELECT, ACTIONKEY_TIMEOUT, ACTIONKEY_TOGGLE, configfile
+from Components.config import ConfigBoolean, ConfigElement, ConfigInteger, ConfigMacText, ConfigNothing, ConfigNumber, ConfigPassword, ConfigSelection, ConfigSequence, ConfigText, ACTIONKEY_0, ACTIONKEY_ASCII, ACTIONKEY_BACKSPACE, ACTIONKEY_DELETE, ACTIONKEY_ERASE, ACTIONKEY_FIRST, ACTIONKEY_LAST, ACTIONKEY_LEFT, ACTIONKEY_NUMBERS, ACTIONKEY_RIGHT, ACTIONKEY_SELECT, ACTIONKEY_TIMEOUT, ACTIONKEY_TOGGLE, configfile
 from Components.GUIComponent import GUIComponent
 from Components.Pixmap import Pixmap
 from Components.Sources.Boolean import Boolean
@@ -287,9 +287,6 @@ class ConfigListScreen:
 				self["editConfigActions"].setEnabled(True)
 			else:
 				self["editConfigActions"].setEnabled(False)
-			if isinstance(currConfig[1], (ConfigText, ConfigMacText)) and "HelpWindow" in self and currConfig[1].help_window and currConfig[1].help_window.instance is not None:
-				helpwindowpos = self["HelpWindow"].getPosition()
-				currConfig[1].help_window.instance.move(ePoint(helpwindowpos[0], helpwindowpos[1]))
 			if isinstance(currConfig[1], ConfigText):
 				self.showVirtualKeyBoard(True)
 			else:
@@ -311,11 +308,11 @@ class ConfigListScreen:
 	def displayHelp(self, state):
 		if "config" in self and "HelpWindow" in self and self["config"].getCurrent() is not None and len(self["config"].getCurrent()) > 1:
 			currConf = self["config"].getCurrent()[1]
-			if isinstance(currConf, (ConfigText, ConfigMacText)) and currConf.help_window is not None and currConf.help_window.instance is not None:
+			if isinstance(currConf, (ConfigText, ConfigMacText, ConfigPassword)) and currConf.helpWindow is not None and currConf.helpWindow.instance is not None:
 				if state:
-					currConf.help_window.show()
+					currConf.helpWindow.show()
 				else:
-					currConf.help_window.hide()
+					currConf.helpWindow.hide()
 
 	def keySelect(self):
 		if isinstance(self.getCurrentItem(), ConfigBoolean):

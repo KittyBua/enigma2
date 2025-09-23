@@ -890,7 +890,7 @@ class ConfigMacText(ConfigElement, NumericalTextInput):
 		self.visible_width = visible_width
 		self.offset = 0
 		self.overwrite = 17
-		self.help_window = None
+		self.helpWindow = None
 		self.value = self.default = default
 		self.last_value = self.tostring(self.value)
 		self.useableChars = '0123456789ABCDEF'
@@ -941,14 +941,14 @@ class ConfigMacText(ConfigElement, NumericalTextInput):
 			self.insertChar(newChar, self.marked_pos, owr)
 		elif key == ACTIONKEY_TIMEOUT:
 			self.timeout()
-			if self.help_window:
-				self.help_window.update(self)
+			if self.helpWindow:
+				self.helpWindow.update(self)
 			if self.text[self.marked_pos] == ':':
 				self.marked_pos += 1
 			return
 
-		if self.help_window:
-			self.help_window.update(self)
+		if self.helpWindow:
+			self.helpWindow.update(self)
 		self.validateMarker()
 		if prev != str(self.value):
 			self.changed()
@@ -994,18 +994,20 @@ class ConfigMacText(ConfigElement, NumericalTextInput):
 			return "mtext"[1 - selected:], str(self.text) + " ", mark
 
 	def onSelect(self, session):
+		print('!'*80)
 		self.allmarked = (self.value != "")
 		if session is not None:
 			from Screens.NumericalTextInputHelpDialog import NumericalTextInputHelpDialog
-			self.help_window = session.instantiateDialog(NumericalTextInputHelpDialog, self)
-			self.help_window.show()
+			self.helpWindow = session.instantiateDialog(NumericalTextInputHelpDialog, self)
+			self.helpWindow.show()
 
 	def onDeselect(self, session):
+		print('#'*80)
 		self.marked_pos = 0
 		self.offset = 0
-		if self.help_window:
-			session.deleteDialog(self.help_window)
-			self.help_window = None
+		if self.helpWindow:
+			session.deleteDialog(self.helpWindow)
+			self.helpWindow = None
 
 	def getHTML(self, id):
 		return '<input type="text" name="' + id + '" value="' + self.value + '" /><br>\n'
@@ -1195,7 +1197,7 @@ class ConfigText(ConfigElement, NumericalTextInput):
 		self.visible_width = visible_width
 		self.offset = 0
 		self.overwrite = fixed_size
-		self.help_window = None
+		self.helpWindow = None
 		self.value = self.default = default
 		self.last_value = self.tostring(self.value)
 
@@ -1312,12 +1314,12 @@ class ConfigText(ConfigElement, NumericalTextInput):
 			self.insertChar(newChar, self.marked_pos, owr)
 		elif key == ACTIONKEY_TIMEOUT:
 			self.timeout()
-			if self.help_window:
-				self.help_window.update(self)
+			if self.helpWindow:
+				self.helpWindow.update(self)
 			return
 
-		if self.help_window:
-			self.help_window.update(self)
+		if self.helpWindow:
+			self.helpWindow.update(self)
 		self.validateMarker()
 		if prev != str(self.value):
 			self.changed()
@@ -1365,23 +1367,23 @@ class ConfigText(ConfigElement, NumericalTextInput):
 		self.allmarked = (self.value != "")
 		if session is not None:
 			from Screens.NumericalTextInputHelpDialog import NumericalTextInputHelpDialog
-			self.help_window = session.instantiateDialog(NumericalTextInputHelpDialog, self)
-			self.help_window.show()
+			self.helpWindow = session.instantiateDialog(NumericalTextInputHelpDialog, self)
+			self.helpWindow.show()
 
 	def onDeselect(self, session):
 		self.marked_pos = 0
 		self.offset = 0
-		if self.help_window:
-			session.deleteDialog(self.help_window)
-			self.help_window = None
+		if self.helpWindow:
+			session.deleteDialog(self.helpWindow)
+			self.helpWindow = None
 
 	def hideHelp(self, session):
-		if session is not None and self.help_window is not None:
-			self.help_window.hide()
+		if session is not None and self.helpWindow is not None:
+			self.helpWindow.hide()
 
 	def showHelp(self, session):
-		if session is not None and self.help_window is not None:
-			self.help_window.show()
+		if session is not None and self.helpWindow is not None:
+			self.helpWindow.show()
 
 	def getHTML(self, id):
 		return '<input type="text" name="' + id + '" value="' + self.value + '" /><br>\n'

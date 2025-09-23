@@ -4,7 +4,7 @@ from Screens.Setup import Setup
 from Components.config import getConfigListEntry, ConfigText
 
 
-class ChangePaswordScreen(Setup):
+class ChangePasswordScreen(Setup):
 
 	def __init__(self, session, args=0):
 		self.skinName = ["Setup"]
@@ -37,13 +37,18 @@ class ChangePaswordScreen(Setup):
 			self.container = eConsoleAppContainer()
 			self.container.appClosed.append(self.runFinished)
 			self.container.dataAvail.append(self.dataAvail)
-			if self.container.execute("passwd root") == 0:
-				message = _("Sucessfully changed password for root user")
+			if self.newPassword.value:
+				if  self.container.execute("passwd root") == 0:
+					message = _("Sucessfully changed password for root user")
+				else:
+					message = _("Unable to change password for root user")
+			elif self.container.execute("passwd -d root") == 0:
+				message = _("Sucessfully cleared password for root user")
 			else:
-				message = _("Unable to change password for root user")
+				message = _("Unable to clear password for root user")
 		else:
 			message = _("Current password incorrect")
-		self.session.open(MessageBox, message, MessageBox.TYPE_INFO, timeout=5)
+		self.session.open(MessageBox, message, MessageBox.TYPE_INFO, timeout=5, simple=True)
 
 	def dataAvail(self, data):
 		if data.find(b'password'):
